@@ -272,12 +272,14 @@ impl Reader {
                     #[cfg(not(feature = "opencl"))]
                     tx_read_replies_cpu.send(ReadReply {
                         buffer,
-                        len: bytes_read,
-                        height,
-                        gensig: gensig.clone(),
-                        start_nonce,
-                        finished,
-                        account_id: p.account_id,
+                        info: BufferInfo {
+                            len: bytes_read,
+                            height,
+                            gensig: gensig.clone(),
+                            start_nonce,
+                            finished,
+                            account_id: p.account_id,
+                        },
                     });
 
                     nonces_processed += bytes_read as u64 / 64;

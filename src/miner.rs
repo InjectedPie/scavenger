@@ -78,6 +78,7 @@ pub trait Buffer {
     fn get_gpu_context(&self) -> Option<Arc<GpuContext>>;
     #[cfg(feature = "opencl")]
     fn get_gpu_buffers(&self) -> Option<&GpuBuffer>;
+    #[cfg(feature = "opencl")]
     fn get_gpu_data(&self) -> Option<core::Mem>;
     fn unmap(&self);
 }
@@ -110,6 +111,7 @@ impl Buffer for CpuBuffer {
     fn get_gpu_buffers(&self) -> Option<&GpuBuffer> {
         None
     }
+    #[cfg(feature = "opencl")]
     fn get_gpu_data(&self) -> Option<core::Mem> {
         None
     }
@@ -273,6 +275,7 @@ impl Miner {
         });
 
         if cfg.gpu_dual_copy_engines {
+            #[cfg(feature = "opencl")]
             thread::spawn({
                 create_gpu_worker_dual_task(
                     cfg.benchmark_only.to_uppercase() == "I/O",
@@ -284,6 +287,7 @@ impl Miner {
                 )
             });
         } else {
+            #[cfg(feature = "opencl")]
             thread::spawn({
                 create_gpu_worker_task(
                     cfg.benchmark_only.to_uppercase() == "I/O",
