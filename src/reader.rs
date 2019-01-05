@@ -218,7 +218,6 @@ impl Reader {
                     let (bytes_read, start_nonce, next_plot) = match p.read(&mut *bs, scoop) {
                         Ok(x) => x,
                         Err(e) => {
-                            buffer.unmap();
                             error!(
                                 "reader: error reading chunk from {}: {} -> skip one round",
                                 p.name, e

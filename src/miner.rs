@@ -291,7 +291,6 @@ impl Miner {
                     tx_empty_buffers.clone(),
                     tx_nonce_data.clone(),
                     context,
-                    drive_id_to_plots.len(),
                 )
             });
         }

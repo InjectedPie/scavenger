@@ -38,6 +38,7 @@ fn main() {
                 config
                     .file("src/c/mshabal_128_neon.c")
                     .file("src/c/shabal_neon.c")
+                    .file("src/c/common.c")
                     .compile("shabal_neon");
              }
          }
@@ -54,6 +55,7 @@ fn main() {
                 config
                     .file("src/c/mshabal_128_sse2.c")
                     .file("src/c/shabal_sse2.c")
+                    .file("src/c/common.c")
                     .compile("shabal_sse2");
 
                 let mut config = shared_config.clone();
@@ -67,6 +69,7 @@ fn main() {
                 config
                     .file("src/c/mshabal_128_avx.c")
                     .file("src/c/shabal_avx.c")
+                    .file("src/c/common.c")
                     .compile("shabal_avx");
 
                 let mut config = shared_config.clone();
@@ -80,6 +83,7 @@ fn main() {
                 config
                     .file("src/c/mshabal_256_avx2.c")
                     .file("src/c/shabal_avx2.c")
+                    .file("src/c/common.c")
                     .compile("shabal_avx2");
 
                 let mut config = shared_config.clone();
@@ -93,6 +97,7 @@ fn main() {
                 config
                     .file("src/c/mshabal_512_avx512f.c")
                     .file("src/c/shabal_avx512f.c")
+                    .file("src/c/common.c")
                     .compile("shabal_avx512f");
             }
         }
