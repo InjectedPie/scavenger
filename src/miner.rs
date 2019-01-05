@@ -11,7 +11,7 @@ use futures::sync::mpsc;
 #[cfg(feature = "opencl")]
 use gpu_worker::create_gpu_worker_task;
 #[cfg(feature = "opencl")]
-use gpu_worker_dual::create_gpu_worker_dual_task;
+use gpu_worker_async::create_gpu_worker_task_async;
 #[cfg(feature = "opencl")]
 use ocl::GpuBuffer;
 #[cfg(feature = "opencl")]
@@ -274,10 +274,10 @@ impl Miner {
             )
         });
 
-        if cfg.gpu_dual_copy_engines {
+        if cfg.gpu_async {
             #[cfg(feature = "opencl")]
             thread::spawn({
-                create_gpu_worker_dual_task(
+                create_gpu_worker_task_async(
                     cfg.benchmark_only.to_uppercase() == "I/O",
                     rx_read_replies_gpu.clone(),
                     tx_empty_buffers.clone(),

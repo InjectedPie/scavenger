@@ -7,7 +7,7 @@ use ocl::{gpu_hash, gpu_transfer, gpu_transfer_and_hash};
 use reader::{BufferInfo, ReadReply};
 use std::sync::Arc;
 
-pub fn create_gpu_worker_task(
+pub fn create_gpu_worker_task_async(
     benchmark: bool,
     rx_read_replies: chan::Receiver<ReadReply>,
     tx_empty_buffers: chan::Sender<Box<Buffer + Send>>,

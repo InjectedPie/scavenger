@@ -37,7 +37,7 @@ mod utils;
 #[cfg(feature = "opencl")]
 mod gpu_worker;
 #[cfg(feature = "opencl")]
-mod gpu_worker_dual;
+mod gpu_worker_async;
 #[cfg(feature = "opencl")]
 mod ocl;
 
