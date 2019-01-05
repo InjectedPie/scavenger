@@ -5,6 +5,7 @@ use miner::{Buffer, NonceData};
 use ocl::GpuContext;
 use ocl::{gpu_hash, gpu_transfer, gpu_transfer_and_hash};
 use reader::{BufferInfo, ReadReply};
+use std::sync::mpsc::{channel, TryRecvError};
 use std::sync::Arc;
 
 pub fn create_gpu_worker_task_async(
@@ -27,12 +28,19 @@ pub fn create_gpu_worker_task_async(
             account_id: 0,
         };
         let mut drive_count = 0;
-
+        let (tx_sink, rx_sink) = channel();
         for read_reply in rx_read_replies {
             let mut buffer = read_reply.buffer;
 
             if read_reply.info.len == 0 || benchmark {
                 if read_reply.info.height == 1 {
+                    if !new_round {
+                        match rx_sink.try_recv() {
+                            Ok(sink_buffer) => tx_empty_buffers.send(sink_buffer).unwrap(),
+                            Err(TryRecvError::Empty) => (),
+                            Err(TryRecvError::Disconnected) => (),
+                        }
+                    }
                     drive_count = 0;
                     new_round = true;
                 }
@@ -60,6 +68,11 @@ pub fn create_gpu_worker_task_async(
                                 })
                                 .wait()
                                 .expect("failed to send nonce data");
+                            match rx_sink.try_recv() {
+                                Ok(sink_buffer) => tx_empty_buffers.send(sink_buffer).unwrap(),
+                                Err(TryRecvError::Empty) => (),
+                                Err(TryRecvError::Disconnected) => (),
+                            }
                         }
                     }
                 }
@@ -94,11 +107,16 @@ pub fn create_gpu_worker_task_async(
                     })
                     .wait()
                     .expect("failed to send nonce data");
+                match rx_sink.try_recv() {
+                    Ok(sink_buffer) => tx_empty_buffers.send(sink_buffer).unwrap(),
+                    Err(TryRecvError::Empty) => (),
+                    Err(TryRecvError::Disconnected) => (),
+                }
             }
             last_buffer_a = buffer.get_gpu_data();
             last_buffer_info_a = read_reply.info;
             new_round = false;
-            tx_empty_buffers.send(buffer).unwrap();
+            tx_sink.send(buffer).unwrap();
         }
     }
 }

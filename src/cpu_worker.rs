@@ -304,7 +304,7 @@ mod tests {
                 offset = 0;
             }
             if is_x86_feature_detected!("avx2") {
-                 init_shabal_avx2();
+                init_shabal_avx2();
                 find_best_deadline_avx2(
                     data.as_ptr() as *mut c_void,
                     len,

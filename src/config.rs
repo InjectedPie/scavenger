@@ -45,8 +45,8 @@ pub struct Cfg {
     #[serde(default = "default_gpu_mem_mapping")]
     pub gpu_mem_mapping: bool,
 
-    #[serde(default = "default_gpu_dual_copy_engines")]
-    pub gpu_dual_copy_engines: bool,
+    #[serde(default = "default_gpu_async")]
+    pub gpu_async: bool,
 
     #[serde(default = "default_target_deadline")]
     pub target_deadline: u64,
@@ -139,7 +139,7 @@ fn default_gpu_mem_mapping() -> bool {
     false
 }
 
-fn default_gpu_dual_copy_engines() -> bool {
+fn default_gpu_async() -> bool {
     false
 }
 
@@ -203,6 +203,7 @@ pub fn load_cfg(config: &str) -> Cfg {
     let cfg_str = fs::read_to_string(config).expect("failed to open config");
     let cfg: Cfg = serde_yaml::from_str(&cfg_str).expect("failed to parse config");
     if cfg.hdd_use_direct_io {
+        // todo: remove or get sectors per drive
         assert!(
             cfg.cpu_nonces_per_cache % 8 == 0 && cfg.gpu_nonces_per_cache % 8 == 0,
             "nonces_per_cache must be devisable by 8 when using direct io"
