@@ -150,10 +150,10 @@ pub fn gpu_info(cfg: &Cfg) {
 
 pub struct GpuContext {
     //todo group in fixed size arrays
-    context: core::Context,
+    pub context: core::Context,
     queue_compute_a: core::CommandQueue,
     queue_compute_b: core::CommandQueue,
-    queue_transfer_a: core::CommandQueue,
+    pub queue_transfer_a: core::CommandQueue,
     queue_transfer_b: core::CommandQueue,
     kernel1_a: core::Kernel,
     kernel2_a: core::Kernel,
@@ -164,7 +164,7 @@ pub struct GpuContext {
     ldim2: [usize; 3],
     gdim2: [usize; 3],
     mapping: bool,
-    gensig_gpu_a: core::Mem,
+    pub gensig_gpu_a: core::Mem,
     gensig_gpu_b: core::Mem,
     deadlines_gpu_a: core::Mem,
     deadlines_gpu_b: core::Mem,

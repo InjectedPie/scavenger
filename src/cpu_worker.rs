@@ -1,4 +1,3 @@
-use chan;
 use futures::sync::mpsc;
 use futures::{Future, Sink};
 use libc::{c_void, uint64_t};
@@ -276,8 +275,32 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "simd")]
     fn test_deadline_hashing() {
+        let mut deadline: u64 = u64::MAX;
+        let mut offset: u64 = 0;
+        let len: u64 = 16;
+        let gensig =
+            hex::decode("4a6f686e6e7946464d206861742064656e206772f6df74656e2050656e697321")
+                .unwrap();
+        let mut data: [u8; 64 * 16] = [0; 64 * 16];
+        for i in 0..32 {
+            data[i * 32..i * 32 + 32].clone_from_slice(&gensig);
+        }
+        unsafe {
+            find_best_deadline_sph(
+                data.as_ptr() as *mut c_void,
+                len,
+                gensig.as_ptr() as *const c_void,
+                &mut deadline,
+                &mut offset,
+            );
+        }
+        assert_eq!(18043101931632730606u64, deadline);
+    }
+
+    #[test]
+    #[cfg(feature = "simd")]
+    fn test_simd_deadline_hashing() {
         let mut deadline: u64 = u64::MAX;
         let mut offset: u64 = 0;
         let len: u64 = 16;
@@ -350,6 +373,35 @@ mod tests {
                 &mut offset,
             );
             assert_eq!(18043101931632730606u64, deadline);
+        }
+    }
+    #[cfg(feature = "neon")]
+    fn test_simd_deadline_hashing() {
+        let mut deadline: u64 = u64::MAX;
+        let mut offset: u64 = 0;
+        let len: u64 = 16;
+        let gensig =
+            hex::decode("4a6f686e6e7946464d206861742064656e206772f6df74656e2050656e697321")
+                .unwrap();
+        let mut data: [u8; 64 * 16] = [0; 64 * 16];
+        for i in 0..32 {
+            data[i * 32..i * 32 + 32].clone_from_slice(&gensig);
+        }
+        #[cfg(target_arch = "arm")]
+        let neon = is_arm_feature_detected!("neon");
+        #[cfg(target_arch = "aarch64")]
+        let neon = true;
+        if neon {
+            find_best_deadline_neon(
+                bs.as_ptr() as *mut c_void,
+                (read_reply.info.len as u64) / 64,
+                read_reply.info.gensig.as_ptr() as *const c_void,
+                &mut deadline,
+                &mut offset,
+            );
+            assert_eq!(18043101931632730606u64, deadline);
+            deadline = u64::MAX;
+            offset = 0;
         }
     }
 }
