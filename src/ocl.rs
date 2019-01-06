@@ -171,6 +171,7 @@ pub struct GpuContext {
     deadlines_gpu: core::Mem,
     best_deadline_gpu: core::Mem,
     best_offset_gpu: core::Mem,
+    nvidia: bool,
 }
 
 #[allow(dead_code)]
@@ -193,6 +194,10 @@ impl GpuContext {
         let platform_id = platform_ids[gpu_platform];
         let device_ids = core::get_device_ids(&platform_id, None, None).unwrap();
         let device_id = device_ids[gpu_id];
+
+        let vendor = to_string!(core::get_device_info(&device_id, DeviceInfo::Vendor)).to_uppercase();
+        let nvidia = vendor.contains("NVIDIA");
+
         let context_properties = ContextProperties::new().platform(platform_id);
         let context =
             core::create_context(Some(&context_properties), &[device_id], None, None).unwrap();
@@ -255,14 +260,13 @@ impl GpuContext {
             deadlines_gpu,
             best_deadline_gpu,
             best_offset_gpu,
+            nvidia
         }
     }
 }
 
 impl GpuBuffer {
     pub fn new(context: &Arc<GpuContext>) -> Self {
-        // todo
-        let nvidia = true;
         // create buffers
         // mapping = zero copy buffers, no mapping = pinned memory for fast DMA.
         if context.mapping {
@@ -341,7 +345,7 @@ impl GpuBuffer {
                     .unwrap(),
                 )
             };
-            let data_gpu = if nvidia {
+            let data_gpu = if context.nvidia {
                 buffer_host.clone()
             } else {
                 unsafe {
@@ -354,7 +358,7 @@ impl GpuBuffer {
                     .unwrap()
                 }
             };
-            let buffer_host = if nvidia { None } else { Some(buffer_host) };
+            let buffer_host = if context.nvidia { None } else { Some(buffer_host) };
 
             let ptr = buffer_ptr_host.as_mut().unwrap().as_mut_ptr();
             let boxed_slice = unsafe {
