@@ -210,10 +210,9 @@ pub fn load_cfg(config: &str) -> Cfg {
     let cfg_str = fs::read_to_string(config).expect("failed to open config");
     let cfg: Cfg = serde_yaml::from_str(&cfg_str).expect("failed to parse config");
     if cfg.hdd_use_direct_io {
-        // todo: remove or get sectors per drive
         assert!(
-            cfg.cpu_nonces_per_cache % 8 == 0 && cfg.gpu_nonces_per_cache % 8 == 0,
-            "nonces_per_cache must be devisable by 8 when using direct io"
+            cfg.cpu_nonces_per_cache % 64 == 0 && cfg.gpu_nonces_per_cache % 64 == 0,
+            "nonces_per_cache should be devisable by 64 when using direct io"
         );
     }
     cfg
