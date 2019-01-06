@@ -530,20 +530,6 @@ fn transfer_buffer_to_gpu(
     }
 }
 
-pub fn gpu_transfer_dual(
-    gpu_context: Arc<GpuContext>,
-    buffer_a: &GpuBuffer,
-    buffer_b: &GpuBuffer,
-    gensig: [u8; 32],
-) {
-    upload_gensig(gpu_context.clone(), gensig, true, false);
-    upload_gensig(gpu_context.clone(), gensig, false, false);
-    transfer_buffer_to_gpu(gpu_context.clone(), buffer_a, true, false);
-    transfer_buffer_to_gpu(gpu_context.clone(), buffer_b, false, false);
-    core::finish(&gpu_context.queue_transfer_a).unwrap();
-    core::finish(&gpu_context.queue_transfer_b).unwrap();
-}
-
 pub fn gpu_transfer_and_hash(
     gpu_context: Arc<GpuContext>,
     buffer: &GpuBuffer,
@@ -554,26 +540,6 @@ pub fn gpu_transfer_and_hash(
     let result = gpu_hash(gpu_context.clone(), nonce_count, data_gpu, true);
     core::finish(&gpu_context.queue_transfer_a).unwrap();
     result
-}
-
-pub fn gpu_transfer_and_hash_dual(
-    gpu_context: Arc<GpuContext>,
-    buffer_a: &GpuBuffer,
-    nonce_count_a: usize,
-    data_gpu_a: &core::Mem,
-    buffer_b: &GpuBuffer,
-    nonce_count_b: usize,
-    data_gpu_b: &core::Mem,
-) -> (u64, u64, u64, u64) {
-    transfer_buffer_to_gpu(gpu_context.clone(), buffer_a, true, false);
-    transfer_buffer_to_gpu(gpu_context.clone(), buffer_b, false, false);
-    hash(gpu_context.clone(), nonce_count_a, data_gpu_a, true);
-    hash(gpu_context.clone(), nonce_count_b, data_gpu_b, false);
-    let result_a = get_result(gpu_context.clone(), true);
-    let result_b = get_result(gpu_context.clone(), false);
-    core::finish(&gpu_context.queue_transfer_a).unwrap();
-    core::finish(&gpu_context.queue_transfer_b).unwrap();
-    (result_a.0, result_a.1, result_b.0, result_b.1)
 }
 
 pub fn gpu_hash(
@@ -718,20 +684,6 @@ pub fn get_result(gpu_context: Arc<GpuContext>, primary: bool) -> (u64, u64) {
     }
 
     (best_deadline[0], best_offset[0])
-}
-
-pub fn gpu_hash_dual(
-    gpu_context: Arc<GpuContext>,
-    nonce_count_a: usize,
-    data_gpu_a: &core::Mem,
-    nonce_count_b: usize,
-    data_gpu_b: &core::Mem,
-) -> (u64, u64, u64, u64) {
-    hash(gpu_context.clone(), nonce_count_a, data_gpu_a, true);
-    hash(gpu_context.clone(), nonce_count_b, data_gpu_b, false);
-    let result_a = get_result(gpu_context.clone(), true);
-    let result_b = get_result(gpu_context.clone(), false);
-    (result_a.0, result_a.1, result_b.0, result_b.1)
 }
 
 fn get_kernel_work_group_size(x: &core::Kernel, y: core::DeviceId) -> usize {

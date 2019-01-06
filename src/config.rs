@@ -21,8 +21,11 @@ pub struct Cfg {
     #[serde(default = "default_hdd_wakeup_after")]
     pub hdd_wakeup_after: i64,
 
-    #[serde(default = "default_cpu_worker_thread_count")]
+    #[serde(default = "default_cpu_threads")]
     pub cpu_worker_thread_count: usize,
+
+    #[serde(default = "default_cpu_worker_thread_count")]
+    pub cpu_threads: usize,
 
     #[serde(default = "default_cpu_nonces_per_cache")]
     pub cpu_nonces_per_cache: usize,
@@ -105,6 +108,10 @@ fn default_hdd_use_direct_io() -> bool {
 
 fn default_hdd_wakeup_after() -> i64 {
     240
+}
+
+fn default_cpu_threads() -> usize {
+    0
 }
 
 fn default_cpu_worker_thread_count() -> usize {

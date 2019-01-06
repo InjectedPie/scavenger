@@ -20,6 +20,7 @@ use plot::{Plot, SCOOP_SIZE};
 use reader::Reader;
 use requests::RequestHandler;
 use std::cell::RefCell;
+use std::cmp::min;
 use std::collections::HashMap;
 use std::fs::read_dir;
 use std::path::Path;
@@ -186,6 +187,17 @@ impl Miner {
             cfg.benchmark_only.to_uppercase() == "XPU",
         );
 
+        let mut core_ids: Vec<core_affinity::CoreId> = Vec::new();
+        if cfg.cpu_thread_pinning {
+            core_ids = core_affinity::get_core_ids().unwrap();
+        }
+
+        let cpu_threads = if cfg.cpu_threads == 0 {
+            core_ids.len()
+        } else {
+            min(cfg.cpu_threads, core_ids.len())
+        };
+
         let reader_thread_count = if cfg.hdd_reader_thread_count == 0 {
             drive_id_to_plots.len()
         } else {
@@ -221,8 +233,11 @@ impl Miner {
 
         #[cfg(feature = "opencl")]
         let gpu_num_buffers = if gpu_worker_thread_count > 0 {
-            // todo if dual + 2
-            gpu_worker_thread_count + 1
+            if cfg.gpu_async {
+                gpu_worker_thread_count + 2
+            } else {
+                gpu_worker_thread_count + 1
+            }
         } else {
             0
         };
@@ -235,8 +250,7 @@ impl Miner {
                 .unwrap();
         }
 
-        //todo reduce buffers
-        for _ in 0..cpu_worker_thread_count * 2 {
+        for _ in 0..cpu_worker_thread_count + cpu_threads {
             let cpu_buffer = CpuBuffer::new(buffer_size_cpu);
             tx_empty_buffers
                 .send(Box::new(cpu_buffer) as Box<Buffer + Send>)
@@ -246,17 +260,13 @@ impl Miner {
         let (tx_nonce_data, rx_nonce_data) =
             mpsc::channel(cpu_worker_thread_count + gpu_worker_thread_count);
 
-        let mut core_ids: Vec<core_affinity::CoreId> = Vec::new();
-        if cfg.cpu_thread_pinning {
-            core_ids = core_affinity::get_core_ids().unwrap();
-        }
         let thread_pinning = cfg.cpu_thread_pinning;
-        // todo limit cpu usage
+
         thread::spawn({
             create_cpu_worker_task(
                 cfg.benchmark_only.to_uppercase() == "I/O",
                 rayon::ThreadPoolBuilder::new()
-                    .num_threads(core_ids.len())
+                    .num_threads(cpu_threads)
                     .start_handler(move |id| {
                         if thread_pinning {
                             #[cfg(not(windows))]
