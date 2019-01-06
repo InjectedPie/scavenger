@@ -32,7 +32,6 @@ pub fn create_gpu_worker_task(
                 context_mu.clone(),
                 read_reply.info.len / 64,
                 buffer.get_gpu_data().as_ref().unwrap(),
-                true,
             );
             let deadline = result.0;
             let offset = result.1;
@@ -85,8 +84,8 @@ mod tests {
 
         unsafe {
             core::enqueue_write_buffer(
-                &context.queue_transfer_a,
-                &context.gensig_gpu_a,
+                &context.queue_transfer,
+                &context.gensig_gpu,
                 true,
                 0,
                 &gensig,
@@ -98,7 +97,7 @@ mod tests {
 
         unsafe {
             core::enqueue_write_buffer(
-                &context.queue_transfer_a,
+                &context.queue_transfer,
                 &buffer_gpu,
                 true,
                 0,
@@ -109,7 +108,7 @@ mod tests {
             .unwrap();
         }
 
-        let result = gpu_hash(context.clone(), len as usize, &buffer_gpu, true);
+        let result = gpu_hash(context.clone(), len as usize, &buffer_gpu);
         assert_eq!(18043101931632730606u64, result.0);
     }
 }

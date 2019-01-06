@@ -461,7 +461,6 @@ impl Miner {
                     if nonce_data.reader_task_processed {
                         state.processed_reader_tasks += 1;
                         if state.processed_reader_tasks == reader_task_count {
-                            // todo: trigger final hashing for gpu
                             info!(
                                 "{: <80}",
                                 format!(

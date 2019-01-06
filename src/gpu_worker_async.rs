@@ -53,7 +53,6 @@ pub fn create_gpu_worker_task_async(
                                 context_mu.clone(),
                                 last_buffer_info_a.len / 64,
                                 last_buffer_a.as_ref().unwrap(),
-                                true,
                             );
                             let deadline = result.0;
                             let offset = result.1;
