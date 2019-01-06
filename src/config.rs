@@ -22,11 +22,11 @@ pub struct Cfg {
     pub hdd_wakeup_after: i64,
 
     #[serde(default = "default_cpu_threads")]
-    pub cpu_worker_thread_count: usize,
-
-    #[serde(default = "default_cpu_worker_thread_count")]
     pub cpu_threads: usize,
 
+    #[serde(default = "default_cpu_worker_task_count")]
+    pub cpu_worker_task_count: usize,
+    
     #[serde(default = "default_cpu_nonces_per_cache")]
     pub cpu_nonces_per_cache: usize,
 
@@ -39,8 +39,8 @@ pub struct Cfg {
     #[serde(default = "default_gpu_device")]
     pub gpu_device: usize,
 
-    #[serde(default = "default_gpu_worker_thread_count")]
-    pub gpu_worker_thread_count: usize,
+    #[serde(default = "default_gpu_worker_task_count")]
+    pub gpu_worker_task_count: usize,
 
     #[serde(default = "default_gpu_nonces_per_cache")]
     pub gpu_nonces_per_cache: usize,
@@ -114,7 +114,7 @@ fn default_cpu_threads() -> usize {
     0
 }
 
-fn default_cpu_worker_thread_count() -> usize {
+fn default_cpu_worker_task_count() -> usize {
     0
 }
 
@@ -134,7 +134,7 @@ fn default_gpu_device() -> usize {
     0
 }
 
-fn default_gpu_worker_thread_count() -> usize {
+fn default_gpu_worker_task_count() -> usize {
     0
 }
 

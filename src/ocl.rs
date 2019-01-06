@@ -81,7 +81,7 @@ pub fn platform_info() {
 }
 
 pub fn gpu_info(cfg: &Cfg) {
-    if cfg.gpu_worker_thread_count > 0 {
+    if cfg.gpu_worker_task_count > 0 {
         let platform_ids = core::get_platform_ids().unwrap();
         if cfg.gpu_platform >= platform_ids.len() {
             error!("OCL: Selected OpenCL platform doesn't exist. Shutting down...");
@@ -105,11 +105,11 @@ pub fn gpu_info(cfg: &Cfg) {
             to_string!(core::get_device_info(&device, DeviceInfo::Name))
         );
 
-        let gpu_num_buffers = if cfg.gpu_worker_thread_count > 0 {
+        let gpu_num_buffers = if cfg.gpu_worker_task_count > 0 {
             if cfg.gpu_async {
-                cfg.gpu_worker_thread_count + 2
+                cfg.gpu_worker_task_count + 2
             } else {
-                cfg.gpu_worker_thread_count + 1
+                cfg.gpu_worker_task_count + 1
             }
         } else {
             0
@@ -150,7 +150,7 @@ pub fn gpu_info(cfg: &Cfg) {
             }
             _ => panic!("Unexpected error. Can't obtain GPU memory size."),
         }
-    } else if cfg.cpu_worker_thread_count == 0 {
+    } else if cfg.cpu_worker_task_count == 0 {
         error!("CPU, GPU: no workers configured. Shutting down...");
         process::exit(0);
     }
