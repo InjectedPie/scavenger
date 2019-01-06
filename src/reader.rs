@@ -20,6 +20,7 @@ use utils::set_thread_ideal_processor;
 pub struct BufferInfo {
     pub len: usize,
     pub height: u64,
+    pub base_target: u64,
     pub gensig: Arc<[u8; 32]>,
     pub start_nonce: u64,
     pub finished: bool,
@@ -98,7 +99,13 @@ impl Reader {
         }
     }
 
-    pub fn start_reading(&mut self, height: u64, scoop: u32, gensig: &Arc<[u8; 32]>) {
+    pub fn start_reading(
+        &mut self,
+        height: u64,
+        base_target: u64,
+        scoop: u32,
+        gensig: &Arc<[u8; 32]>,
+    ) {
         for interupt in &self.interupts {
             interupt.send(()).ok();
         }
@@ -118,6 +125,7 @@ impl Reader {
                 info: BufferInfo {
                     len: 0,
                     height: 1,
+                    base_target: 0,
                     gensig: gensig.clone(),
                     start_nonce: 0,
                     finished: true,
@@ -136,6 +144,7 @@ impl Reader {
                         drive.clone(),
                         plots.clone(),
                         height,
+                        base_target,
                         scoop,
                         gensig.clone(),
                         self.show_drive_stats,
@@ -146,6 +155,7 @@ impl Reader {
                         drive.clone(),
                         plots.clone(),
                         height,
+                        base_target,
                         scoop,
                         gensig.clone(),
                         self.show_drive_stats,
@@ -181,6 +191,7 @@ impl Reader {
         drive: String,
         plots: Arc<Mutex<Vec<RwLock<Plot>>>>,
         height: u64,
+        base_target: u64,
         scoop: u32,
         gensig: Arc<[u8; 32]>,
         show_drive_stats: bool,
@@ -245,6 +256,7 @@ impl Reader {
                                     info: BufferInfo {
                                         len: bytes_read,
                                         height,
+                                        base_target,
                                         gensig: gensig.clone(),
                                         start_nonce,
                                         finished,
@@ -260,6 +272,7 @@ impl Reader {
                                     info: BufferInfo {
                                         len: bytes_read,
                                         height,
+                                        base_target,
                                         gensig: gensig.clone(),
                                         start_nonce,
                                         finished,
@@ -305,6 +318,7 @@ impl Reader {
                                 info: BufferInfo {
                                     len: 0,
                                     height: 0,
+                                    base_target: 0,
                                     gensig: gensig.clone(),
                                     start_nonce: 0,
                                     finished: true,

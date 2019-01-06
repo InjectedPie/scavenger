@@ -41,6 +41,7 @@ pub fn create_gpu_worker_task(
                 .clone()
                 .send(NonceData {
                     height: read_reply.info.height,
+                    base_target: read_reply.info.base_target,
                     deadline,
                     nonce: offset + read_reply.info.start_nonce,
                     reader_task_processed: read_reply.info.finished,
@@ -57,9 +58,9 @@ pub fn create_gpu_worker_task(
 #[cfg(test)]
 mod tests {
     extern crate ocl_core as core;
+    use self::core::Event;
     use hex;
     use ocl::gpu_hash;
-    use self::core::Event;
     use ocl::GpuContext;
     use std::sync::Arc;
     use std::u64;

@@ -190,6 +190,7 @@ pub fn hash(
             .clone()
             .send(NonceData {
                 height: read_reply.info.height,
+                base_target: read_reply.info.base_target,
                 deadline,
                 nonce: offset + read_reply.info.start_nonce,
                 reader_task_processed: read_reply.info.finished,

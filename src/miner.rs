@@ -64,6 +64,7 @@ pub struct State {
 
 pub struct NonceData {
     pub height: u64,
+    pub base_target: u64,
     pub deadline: u64,
     pub nonce: u64,
     pub reader_task_processed: bool,
@@ -387,6 +388,7 @@ impl Miner {
 
                                 reader.borrow_mut().start_reading(
                                     mining_info.height,
+                                    mining_info.base_target,
                                     scoop,
                                     &Arc::new(gensig),
                                 );
@@ -420,29 +422,31 @@ impl Miner {
             self.rx_nonce_data
                 .for_each(move |nonce_data| {
                     let mut state = state.lock().unwrap();
-                    let deadline = nonce_data.deadline / state.base_target;
-                    let best_deadline = *state
-                        .account_id_to_best_deadline
-                        .get(&nonce_data.account_id)
-                        .unwrap_or(&u64::MAX);
-                    if best_deadline > deadline
-                        && deadline
-                            < *(account_id_to_target_deadline
-                                .get(&nonce_data.account_id)
-                                .unwrap_or(&target_deadline))
-                    {
-                        state
+                    let deadline = nonce_data.deadline / nonce_data.base_target;
+                    if state.height == nonce_data.height {
+                        let best_deadline = *state
                             .account_id_to_best_deadline
-                            .insert(nonce_data.account_id, deadline);
-                        request_handler.submit_nonce(
-                            &inner_handle,
-                            nonce_data.account_id,
-                            nonce_data.nonce,
-                            nonce_data.height,
-                            nonce_data.deadline,
-                            deadline,
-                            0,
-                        );
+                            .get(&nonce_data.account_id)
+                            .unwrap_or(&u64::MAX);
+                        if best_deadline > deadline
+                            && deadline
+                                < *(account_id_to_target_deadline
+                                    .get(&nonce_data.account_id)
+                                    .unwrap_or(&target_deadline))
+                        {
+                            state
+                                .account_id_to_best_deadline
+                                .insert(nonce_data.account_id, deadline);
+                            request_handler.submit_nonce(
+                                &inner_handle,
+                                nonce_data.account_id,
+                                nonce_data.nonce,
+                                nonce_data.height,
+                                nonce_data.deadline,
+                                deadline,
+                                0,
+                            );
+                        }
                     }
                     if nonce_data.reader_task_processed {
                         state.processed_reader_tasks += 1;

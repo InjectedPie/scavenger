@@ -22,6 +22,7 @@ pub fn create_gpu_worker_task_async(
         let mut last_buffer_info_a = BufferInfo {
             len: 0,
             height: 0,
+            base_target: 0,
             gensig: Arc::new([0u8; 32]),
             start_nonce: 0,
             finished: false,
@@ -61,6 +62,7 @@ pub fn create_gpu_worker_task_async(
                                 .clone()
                                 .send(NonceData {
                                     height: last_buffer_info_a.height,
+                                    base_target: last_buffer_info_a.base_target,
                                     deadline,
                                     nonce: offset + last_buffer_info_a.start_nonce,
                                     reader_task_processed: last_buffer_info_a.finished,
@@ -100,6 +102,7 @@ pub fn create_gpu_worker_task_async(
                     .clone()
                     .send(NonceData {
                         height: last_buffer_info_a.height,
+                        base_target: last_buffer_info_a.base_target,
                         deadline,
                         nonce: offset + last_buffer_info_a.start_nonce,
                         reader_task_processed: last_buffer_info_a.finished,
@@ -109,8 +112,7 @@ pub fn create_gpu_worker_task_async(
                     .expect("failed to send nonce data");
                 match rx_sink.try_recv() {
                     Ok(sink_buffer) => tx_empty_buffers.send(sink_buffer).unwrap(),
-                    Err(TryRecvError::Empty) => (),
-                    Err(TryRecvError::Disconnected) => (),
+                    Err(_) => (),
                 }
             }
             last_buffer_a = buffer.get_gpu_data();

@@ -473,9 +473,9 @@ fn upload_gensig(gpu_context: Arc<GpuContext>, gensig: [u8; 32], primary: bool, 
     unsafe {
         core::enqueue_write_buffer(
             if primary {
-                &gpu_context.queue_transfer_a
+                &gpu_context.queue_compute_a
             } else {
-                &gpu_context.queue_transfer_b
+                &gpu_context.queue_compute_b
             },
             gensig_gpu,
             blocking,
