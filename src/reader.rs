@@ -38,7 +38,7 @@ pub struct Reader {
     rx_empty_buffers: chan::Receiver<Box<Buffer + Send>>,
     tx_empty_buffers: chan::Sender<Box<Buffer + Send>>,
     tx_read_replies_cpu: chan::Sender<ReadReply>,
-    tx_read_replies_gpu: chan::Sender<ReadReply>,
+    tx_read_replies_gpu: Option<chan::Sender<ReadReply>>,
     interupts: Vec<Sender<()>>,
     show_progress: bool,
     show_drive_stats: bool,
@@ -52,7 +52,7 @@ impl Reader {
         rx_empty_buffers: chan::Receiver<Box<Buffer + Send>>,
         tx_empty_buffers: chan::Sender<Box<Buffer + Send>>,
         tx_read_replies_cpu: chan::Sender<ReadReply>,
-        tx_read_replies_gpu: chan::Sender<ReadReply>,
+        tx_read_replies_gpu: Option<chan::Sender<ReadReply>>,
         show_progress: bool,
         show_drive_stats: bool,
         thread_pinning: bool,
@@ -118,7 +118,7 @@ impl Reader {
 
         // send start signal (dummy buffer) to gpu
         #[cfg(feature = "opencl")]
-        self.tx_read_replies_gpu
+        self.tx_read_replies_gpu.as_ref().unwrap()
             .send(ReadReply {
                 buffer: self.rx_empty_buffers.recv().unwrap(),
 
@@ -266,7 +266,7 @@ impl Reader {
                                 .unwrap();
                         }
                         Some(_context) => {
-                            tx_read_replies_gpu
+                            tx_read_replies_gpu.as_ref().unwrap()
                                 .send(ReadReply {
                                     buffer,
                                     info: BufferInfo {
@@ -288,12 +288,13 @@ impl Reader {
                         info: BufferInfo {
                             len: bytes_read,
                             height,
+                            base_target,
                             gensig: gensig.clone(),
                             start_nonce,
                             finished,
                             account_id: p.account_id,
                         },
-                    });
+                    }).unwrap();
 
                     nonces_processed += bytes_read as u64 / 64;
 
@@ -312,7 +313,7 @@ impl Reader {
                     // send termination signal (dummy buffer) to gpu
                     if finished {
                         #[cfg(feature = "opencl")]
-                        tx_read_replies_gpu
+                        tx_read_replies_gpu.as_ref().unwrap()
                             .send(ReadReply {
                                 buffer: rx_empty_buffers.recv().unwrap(),
                                 info: BufferInfo {

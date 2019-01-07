@@ -124,12 +124,10 @@ pub fn gpu_info(cfg: &Cfg) {
                 );
                 info!(
                     "GPU: RAM usage (estimated)={}MiB",
-                    cfg.gpu_nonces_per_cache * 64 * (gpu_num_buffers) / 1024 / 1024
-                        + 45
+                    cfg.gpu_nonces_per_cache * 64 * (gpu_num_buffers) / 1024 / 1024 + 45
                 );
 
-                if cfg.gpu_nonces_per_cache * 64 * (gpu_num_buffers) / 1024 / 1024
-                    + 45
+                if cfg.gpu_nonces_per_cache * 64 * (gpu_num_buffers) / 1024 / 1024 + 45
                     > mem as usize / 1024 / 1024
                 {
                     warn!(
@@ -195,7 +193,8 @@ impl GpuContext {
         let device_ids = core::get_device_ids(&platform_id, None, None).unwrap();
         let device_id = device_ids[gpu_id];
 
-        let vendor = to_string!(core::get_device_info(&device_id, DeviceInfo::Vendor)).to_uppercase();
+        let vendor =
+            to_string!(core::get_device_info(&device_id, DeviceInfo::Vendor)).to_uppercase();
         let nvidia = vendor.contains("NVIDIA");
 
         let context_properties = ContextProperties::new().platform(platform_id);
@@ -260,7 +259,7 @@ impl GpuContext {
             deadlines_gpu,
             best_deadline_gpu,
             best_offset_gpu,
-            nvidia
+            nvidia,
         }
     }
 }
@@ -358,7 +357,11 @@ impl GpuBuffer {
                     .unwrap()
                 }
             };
-            let buffer_host = if context.nvidia { None } else { Some(buffer_host) };
+            let buffer_host = if context.nvidia {
+                None
+            } else {
+                Some(buffer_host)
+            };
 
             let ptr = buffer_ptr_host.as_mut().unwrap().as_mut_ptr();
             let boxed_slice = unsafe {
@@ -454,11 +457,7 @@ fn upload_gensig(gpu_context: Arc<GpuContext>, gensig: [u8; 32], blocking: bool)
     }
 }
 
-fn transfer_buffer_to_gpu(
-    gpu_context: Arc<GpuContext>,
-    buffer: &GpuBuffer,
-    blocking: bool,
-) {
+fn transfer_buffer_to_gpu(gpu_context: Arc<GpuContext>, buffer: &GpuBuffer, blocking: bool) {
     let data = buffer.data.clone();
     let data2 = (*data).lock().unwrap();
     if gpu_context.mapping {
@@ -509,9 +508,19 @@ pub fn gpu_hash(
 }
 
 fn hash(gpu_context: Arc<GpuContext>, nonce_count: usize, data_gpu: &core::Mem) {
-    core::set_kernel_arg(&gpu_context.kernel1, 0, ArgVal::mem(&gpu_context.gensig_gpu)).unwrap();
+    core::set_kernel_arg(
+        &gpu_context.kernel1,
+        0,
+        ArgVal::mem(&gpu_context.gensig_gpu),
+    )
+    .unwrap();
     core::set_kernel_arg(&gpu_context.kernel1, 1, ArgVal::mem(&data_gpu)).unwrap();
-    core::set_kernel_arg(&gpu_context.kernel1, 2, ArgVal::mem(&gpu_context.deadlines_gpu)).unwrap();
+    core::set_kernel_arg(
+        &gpu_context.kernel1,
+        2,
+        ArgVal::mem(&gpu_context.deadlines_gpu),
+    )
+    .unwrap();
 
     unsafe {
         core::enqueue_kernel(
@@ -527,11 +536,36 @@ fn hash(gpu_context: Arc<GpuContext>, nonce_count: usize, data_gpu: &core::Mem) 
         .unwrap();
     }
 
-    core::set_kernel_arg(&gpu_context.kernel2, 0, ArgVal::mem(&gpu_context.deadlines_gpu)).unwrap();
-    core::set_kernel_arg(&gpu_context.kernel2, 1, ArgVal::primitive(&(nonce_count as u64))).unwrap();
-    core::set_kernel_arg(&gpu_context.kernel2, 2, ArgVal::local::<u32>(&gpu_context.ldim2[0])).unwrap();
-    core::set_kernel_arg(&gpu_context.kernel2, 3, ArgVal::mem(&gpu_context.best_offset_gpu)).unwrap();
-    core::set_kernel_arg(&gpu_context.kernel2, 4, ArgVal::mem(&gpu_context.best_deadline_gpu)).unwrap();
+    core::set_kernel_arg(
+        &gpu_context.kernel2,
+        0,
+        ArgVal::mem(&gpu_context.deadlines_gpu),
+    )
+    .unwrap();
+    core::set_kernel_arg(
+        &gpu_context.kernel2,
+        1,
+        ArgVal::primitive(&(nonce_count as u64)),
+    )
+    .unwrap();
+    core::set_kernel_arg(
+        &gpu_context.kernel2,
+        2,
+        ArgVal::local::<u32>(&gpu_context.ldim2[0]),
+    )
+    .unwrap();
+    core::set_kernel_arg(
+        &gpu_context.kernel2,
+        3,
+        ArgVal::mem(&gpu_context.best_offset_gpu),
+    )
+    .unwrap();
+    core::set_kernel_arg(
+        &gpu_context.kernel2,
+        4,
+        ArgVal::mem(&gpu_context.best_deadline_gpu),
+    )
+    .unwrap();
 
     unsafe {
         core::enqueue_kernel(

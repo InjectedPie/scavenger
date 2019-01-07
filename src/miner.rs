@@ -192,6 +192,7 @@ impl Miner {
         };
 
         let cpu_worker_task_count = cfg.cpu_worker_task_count;
+        #[cfg(feature = "opencl")]
         let gpu_worker_task_count = cfg.gpu_worker_task_count;
 
         let cpu_buffer_count = cpu_worker_task_count + cpu_threads;
@@ -216,30 +217,47 @@ impl Miner {
         #[cfg(feature = "opencl")]
         info!(
             "reader-threads={}, CPU-threads={}, GPU-threads={}",
-            reader_thread_count, cpu_threads, if gpu_worker_task_count > 0 {1} else {0}
+            reader_thread_count,
+            cpu_threads,
+            if gpu_worker_task_count > 0 { 1 } else { 0 }
         );
         #[cfg(feature = "opencl")]
         info!(
             "CPU-buffer={}(+{}), GPU-buffer={}(+{})",
-            cpu_worker_task_count, if cpu_worker_task_count > 0 {cpu_threads} else {0}, gpu_worker_task_count, if gpu_worker_task_count > 0 {if cfg.gpu_async {2}else{1}} else {0}
+            cpu_worker_task_count,
+            if cpu_worker_task_count > 0 {
+                cpu_threads
+            } else {
+                0
+            },
+            gpu_worker_task_count,
+            if gpu_worker_task_count > 0 {
+                if cfg.gpu_async {
+                    2
+                } else {
+                    1
+                }
+            } else {
+                0
+            }
         );
-        
+
         #[cfg(not(feature = "opencl"))]
         info!(
             "reader-threads={} CPU-threads={}",
             reader_thread_count, cpu_threads
         );
         #[cfg(not(feature = "opencl"))]
-        info!(
-            "CPU-buffer={}(+{})",
-            cpu_worker_task_count, cpu_threads
-        );
+        info!("CPU-buffer={}(+{})", cpu_worker_task_count, cpu_threads);
 
+        #[cfg(not(feature = "opencl"))]
+        let buffer_count = cpu_buffer_count;
+        #[cfg(feature = "opencl")]
         let buffer_count = cpu_buffer_count + gpu_buffer_count;
         let buffer_size_cpu = cfg.cpu_nonces_per_cache * SCOOP_SIZE as usize;
-
         let (tx_empty_buffers, rx_empty_buffers) = chan::bounded(buffer_count as usize);
         let (tx_read_replies_cpu, rx_read_replies_cpu) = chan::bounded(cpu_buffer_count);
+        #[cfg(feature = "opencl")]
         let (tx_read_replies_gpu, rx_read_replies_gpu) = chan::bounded(gpu_buffer_count);
 
         #[cfg(feature = "opencl")]
@@ -269,8 +287,7 @@ impl Miner {
                 .unwrap();
         }
 
-        let (tx_nonce_data, rx_nonce_data) =
-            mpsc::channel(buffer_count);
+        let (tx_nonce_data, rx_nonce_data) = mpsc::channel(buffer_count);
 
         let thread_pinning = cfg.cpu_thread_pinning;
 
@@ -321,6 +338,11 @@ impl Miner {
                 )
             });
         }
+
+        #[cfg(feature = "opencl")]
+        let tx_read_replies_gpu = Some(tx_read_replies_gpu);
+        #[cfg(not(feature = "opencl"))]
+        let tx_read_replies_gpu = None;
 
         let core = Core::new().unwrap();
         Miner {

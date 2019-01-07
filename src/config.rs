@@ -26,7 +26,7 @@ pub struct Cfg {
 
     #[serde(default = "default_cpu_worker_task_count")]
     pub cpu_worker_task_count: usize,
-    
+
     #[serde(default = "default_cpu_nonces_per_cache")]
     pub cpu_nonces_per_cache: usize,
 
