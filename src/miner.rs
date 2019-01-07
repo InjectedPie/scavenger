@@ -1,4 +1,3 @@
-extern crate num_cpus;
 #[cfg(feature = "opencl")]
 extern crate ocl_core as core;
 
@@ -58,8 +57,6 @@ pub struct State {
     base_target: u64,
     sw: Stopwatch,
     scanning: bool,
-
-    // count how many reader's scoops have been processed
     processed_reader_tasks: usize,
 }
 
@@ -75,7 +72,6 @@ pub struct NonceData {
 pub trait Buffer {
     fn get_buffer(&mut self) -> Arc<Mutex<Vec<u8>>>;
     fn get_buffer_for_writing(&mut self) -> Arc<Mutex<Vec<u8>>>;
-    // fn get_buffer_size(&self) -> usize;
     #[cfg(feature = "opencl")]
     fn get_gpu_context(&self) -> Option<Arc<GpuContext>>;
     #[cfg(feature = "opencl")]
@@ -187,10 +183,7 @@ impl Miner {
             cfg.benchmark_only.to_uppercase() == "XPU",
         );
 
-        let mut core_ids: Vec<core_affinity::CoreId> = Vec::new();
-        if cfg.cpu_thread_pinning {
-            core_ids = core_affinity::get_core_ids().unwrap();
-        }
+        let core_ids = core_affinity::get_core_ids().unwrap();
 
         let cpu_threads = if cfg.cpu_threads == 0 {
             core_ids.len()
@@ -228,7 +221,7 @@ impl Miner {
         #[cfg(feature = "opencl")]
         info!(
             "CPU-buffer={}(+{}), GPU-buffer={}(+{})",
-            cpu_worker_task_count, cpu_threads, gpu_worker_task_count, if cfg.gpu_async {2}else{1}
+            cpu_worker_task_count, if cpu_worker_task_count > 0 {cpu_threads} else {0}, gpu_worker_task_count, if gpu_worker_task_count > 0 {if cfg.gpu_async {2}else{1}} else {0}
         );
         
         #[cfg(not(feature = "opencl"))]
