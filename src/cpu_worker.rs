@@ -97,6 +97,21 @@ pub fn hash(
     move || {
         let mut buffer = read_reply.buffer;
         if read_reply.info.len == 0 || benchmark {
+            if benchmark && read_reply.info.finished {
+                let deadline = u64::MAX;
+                tx_nonce_data
+                    .clone()
+                    .send(NonceData {
+                        height: read_reply.info.height,
+                        base_target: read_reply.info.base_target,
+                        deadline,
+                        nonce: 0,
+                        reader_task_processed: read_reply.info.finished,
+                        account_id: read_reply.info.account_id,
+                    })
+                    .wait()
+                    .expect("failed to send nonce data");
+            }
             tx_empty_buffers.send(buffer).unwrap();
             return;
         }

@@ -118,14 +118,16 @@ impl Reader {
 
         // send start signal (dummy buffer) to gpu
         #[cfg(feature = "opencl")]
-        self.tx_read_replies_gpu.as_ref().unwrap()
+        self.tx_read_replies_gpu
+            .as_ref()
+            .unwrap()
             .send(ReadReply {
                 buffer: self.rx_empty_buffers.recv().unwrap(),
 
                 info: BufferInfo {
                     len: 0,
                     height: 1,
-                    base_target: 0,
+                    base_target: 1,
                     gensig: gensig.clone(),
                     start_nonce: 0,
                     finished: true,
@@ -266,7 +268,9 @@ impl Reader {
                                 .unwrap();
                         }
                         Some(_context) => {
-                            tx_read_replies_gpu.as_ref().unwrap()
+                            tx_read_replies_gpu
+                                .as_ref()
+                                .unwrap()
                                 .send(ReadReply {
                                     buffer,
                                     info: BufferInfo {
@@ -283,18 +287,20 @@ impl Reader {
                         }
                     }
                     #[cfg(not(feature = "opencl"))]
-                    tx_read_replies_cpu.send(ReadReply {
-                        buffer,
-                        info: BufferInfo {
-                            len: bytes_read,
-                            height,
-                            base_target,
-                            gensig: gensig.clone(),
-                            start_nonce,
-                            finished,
-                            account_id: p.account_id,
-                        },
-                    }).unwrap();
+                    tx_read_replies_cpu
+                        .send(ReadReply {
+                            buffer,
+                            info: BufferInfo {
+                                len: bytes_read,
+                                height,
+                                base_target,
+                                gensig: gensig.clone(),
+                                start_nonce,
+                                finished,
+                                account_id: p.account_id,
+                            },
+                        })
+                        .unwrap();
 
                     nonces_processed += bytes_read as u64 / 64;
 
@@ -313,13 +319,15 @@ impl Reader {
                     // send termination signal (dummy buffer) to gpu
                     if finished {
                         #[cfg(feature = "opencl")]
-                        tx_read_replies_gpu.as_ref().unwrap()
+                        tx_read_replies_gpu
+                            .as_ref()
+                            .unwrap()
                             .send(ReadReply {
                                 buffer: rx_empty_buffers.recv().unwrap(),
                                 info: BufferInfo {
                                     len: 0,
                                     height: 0,
-                                    base_target: 0,
+                                    base_target: 1,
                                     gensig: gensig.clone(),
                                     start_nonce: 0,
                                     finished: true,

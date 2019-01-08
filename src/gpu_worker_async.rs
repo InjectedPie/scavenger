@@ -7,6 +7,7 @@ use ocl::{gpu_hash, gpu_transfer, gpu_transfer_and_hash};
 use reader::{BufferInfo, ReadReply};
 use std::sync::mpsc::{channel, TryRecvError};
 use std::sync::Arc;
+use std::u64;
 
 pub fn create_gpu_worker_task_async(
     benchmark: bool,
@@ -34,6 +35,21 @@ pub fn create_gpu_worker_task_async(
             let mut buffer = read_reply.buffer;
 
             if read_reply.info.len == 0 || benchmark {
+                if benchmark && read_reply.info.height == 0 {
+                    let deadline = u64::MAX;
+                    tx_nonce_data
+                        .clone()
+                        .send(NonceData {
+                            height: read_reply.info.height,
+                            base_target: read_reply.info.base_target,
+                            deadline,
+                            nonce: 0,
+                            reader_task_processed: read_reply.info.finished,
+                            account_id: read_reply.info.account_id,
+                        })
+                        .wait()
+                        .expect("failed to send nonce data");
+                }
                 if read_reply.info.height == 1 {
                     if !new_round {
                         match rx_sink.try_recv() {
