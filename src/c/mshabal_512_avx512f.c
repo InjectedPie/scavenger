@@ -16,10 +16,10 @@
  * <thomas.pornin@cryptolog.com>
  */
 
-#include "mshabal_512_avx512f.h"
 #include <immintrin.h>
 #include <stddef.h>
 #include <string.h>
+#include "mshabal_512_avx512f.h"
 
 #ifdef __cplusplus
 extern "C" {

@@ -16,10 +16,10 @@
  * <thomas.pornin@cryptolog.com>
  */
 
-#include "mshabal_128_sse2.h"
 #include <emmintrin.h>
 #include <stddef.h>
 #include <string.h>
+#include "mshabal_128_sse2.h"
 
 #ifdef __cplusplus
 extern "C" {

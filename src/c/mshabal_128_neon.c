@@ -16,10 +16,10 @@
  * <thomas.pornin@cryptolog.com>
  */
 
-#include "mshabal_128_neon.h"
 #include "SSE2NEON.h"
 #include <stddef.h>
 #include <string.h>
+#include "mshabal_128_neon.h"
 
 #ifdef __cplusplus
 extern "C" {
