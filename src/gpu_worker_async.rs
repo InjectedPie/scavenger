@@ -28,14 +28,17 @@ pub fn create_gpu_worker_task_async(
             start_nonce: 0,
             finished: false,
             account_id: 0,
+            gpu_signal: 0,
         };
         let mut drive_count = 0;
         let (tx_sink, rx_sink) = channel();
+        let mut active_height = 0;
         for read_reply in rx_read_replies {
             let mut buffer = read_reply.buffer;
 
-            if read_reply.info.len == 0 || benchmark {
-                if benchmark && read_reply.info.height == 0 {
+            // process benchmark mode
+            if read_reply.info.len == 0 && benchmark {
+                if read_reply.info.finished {
                     let deadline = u64::MAX;
                     tx_nonce_data
                         .clone()
@@ -50,46 +53,54 @@ pub fn create_gpu_worker_task_async(
                         .wait()
                         .expect("failed to send nonce data");
                 }
-                if read_reply.info.height == 1 {
+                tx_empty_buffers.send(buffer).unwrap();
+                continue;
+            }
+
+            // process start signal
+            if read_reply.info.gpu_signal == 1 {
+                if !new_round {
+                    match rx_sink.try_recv() {
+                        Ok(sink_buffer) => tx_empty_buffers.send(sink_buffer).unwrap(),
+                        Err(_) => (),
+                    }
+                }
+                drive_count = 0;
+                active_height = read_reply.info.height;
+                new_round = true;
+                tx_empty_buffers.send(buffer).unwrap();
+                continue;
+            }
+
+            // end signal
+            if read_reply.info.gpu_signal == 2 && active_height == read_reply.info.height{
+                drive_count += 1;
+                if drive_count == num_drives {
                     if !new_round {
+                        let result = gpu_hash(
+                            context_mu.clone(),
+                            last_buffer_info_a.len / 64,
+                            last_buffer_a.as_ref().unwrap(),
+                        );
+                        let deadline = result.0;
+                        let offset = result.1;
+
+                        tx_nonce_data
+                            .clone()
+                            .send(NonceData {
+                                height: last_buffer_info_a.height,
+                                base_target: last_buffer_info_a.base_target,
+                                deadline,
+                                nonce: offset + last_buffer_info_a.start_nonce,
+                                reader_task_processed: last_buffer_info_a.finished,
+                                account_id: last_buffer_info_a.account_id,
+                            })
+                            .wait()
+                            .expect("failed to send nonce data");
                         match rx_sink.try_recv() {
                             Ok(sink_buffer) => tx_empty_buffers.send(sink_buffer).unwrap(),
                             Err(TryRecvError::Empty) => (),
                             Err(TryRecvError::Disconnected) => (),
-                        }
-                    }
-                    drive_count = 0;
-                    new_round = true;
-                }
-                if read_reply.info.height == 0 {
-                    drive_count += 1;
-                    if drive_count == num_drives {
-                        if !new_round {
-                            let result = gpu_hash(
-                                context_mu.clone(),
-                                last_buffer_info_a.len / 64,
-                                last_buffer_a.as_ref().unwrap(),
-                            );
-                            let deadline = result.0;
-                            let offset = result.1;
-
-                            tx_nonce_data
-                                .clone()
-                                .send(NonceData {
-                                    height: last_buffer_info_a.height,
-                                    base_target: last_buffer_info_a.base_target,
-                                    deadline,
-                                    nonce: offset + last_buffer_info_a.start_nonce,
-                                    reader_task_processed: last_buffer_info_a.finished,
-                                    account_id: last_buffer_info_a.account_id,
-                                })
-                                .wait()
-                                .expect("failed to send nonce data");
-                            match rx_sink.try_recv() {
-                                Ok(sink_buffer) => tx_empty_buffers.send(sink_buffer).unwrap(),
-                                Err(TryRecvError::Empty) => (),
-                                Err(TryRecvError::Disconnected) => (),
-                            }
                         }
                     }
                 }

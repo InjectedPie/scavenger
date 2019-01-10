@@ -25,6 +25,7 @@ pub struct BufferInfo {
     pub start_nonce: u64,
     pub finished: bool,
     pub account_id: u64,
+    pub gpu_signal: u64,
 }
 pub struct ReadReply {
     pub buffer: Box<Buffer + Send>,
@@ -123,15 +124,15 @@ impl Reader {
             .unwrap()
             .send(ReadReply {
                 buffer: self.rx_empty_buffers.recv().unwrap(),
-
                 info: BufferInfo {
-                    len: 0,
-                    height: 1,
-                    base_target: 1,
+                    len: 1,
+                    height,
+                    base_target,
                     gensig: gensig.clone(),
                     start_nonce: 0,
-                    finished: true,
+                    finished: false,
                     account_id: 0,
+                    gpu_signal: 1,
                 },
             })
             .unwrap();
@@ -263,6 +264,7 @@ impl Reader {
                                         start_nonce,
                                         finished,
                                         account_id: p.account_id,
+                                        gpu_signal: 0,
                                     },
                                 })
                                 .unwrap();
@@ -281,6 +283,7 @@ impl Reader {
                                         start_nonce,
                                         finished,
                                         account_id: p.account_id,
+                                        gpu_signal: 0,
                                     },
                                 })
                                 .unwrap();
@@ -298,6 +301,7 @@ impl Reader {
                                 start_nonce,
                                 finished,
                                 account_id: p.account_id,
+                                gpu_signal: 0,
                             },
                         })
                         .unwrap();
@@ -325,13 +329,14 @@ impl Reader {
                             .send(ReadReply {
                                 buffer: rx_empty_buffers.recv().unwrap(),
                                 info: BufferInfo {
-                                    len: 0,
+                                    len: 1,
                                     height: 0,
                                     base_target: 1,
                                     gensig: gensig.clone(),
                                     start_nonce: 0,
-                                    finished: true,
+                                    finished: false,
                                     account_id: 0,
+                                    gpu_signal: 2,
                                 },
                             })
                             .unwrap();

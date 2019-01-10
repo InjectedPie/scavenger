@@ -18,9 +18,10 @@ pub fn create_gpu_worker_task(
     move || {
         for read_reply in rx_read_replies {
             let mut buffer = read_reply.buffer;
-
+            // handle empty buffers (read errors) && benchmark
             if read_reply.info.len == 0 || benchmark {
-                if benchmark && read_reply.info.height == 0 {
+                // forward 'drive finished signal'
+                if read_reply.info.finished {
                     let deadline = u64::MAX;
                     tx_nonce_data
                         .clone()
@@ -35,6 +36,12 @@ pub fn create_gpu_worker_task(
                         .wait()
                         .expect("failed to send nonce data");
                 }
+                tx_empty_buffers.send(buffer).unwrap();
+                continue;
+            }
+
+            // ignore all signals
+            if read_reply.info.gpu_signal > 0 {
                 tx_empty_buffers.send(buffer).unwrap();
                 continue;
             }

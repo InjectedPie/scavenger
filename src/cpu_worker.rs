@@ -96,8 +96,10 @@ pub fn hash(
 ) -> impl FnOnce() {
     move || {
         let mut buffer = read_reply.buffer;
+        // handle empty buffers (read errors) && benchmark
         if read_reply.info.len == 0 || benchmark {
-            if benchmark && read_reply.info.finished {
+            // forward 'drive finished signal'
+            if read_reply.info.finished {
                 let deadline = u64::MAX;
                 tx_nonce_data
                     .clone()
