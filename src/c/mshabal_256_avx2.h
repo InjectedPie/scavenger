@@ -163,7 +163,7 @@ void mshabal_close_avx2(mshabal256_context *sc, unsigned ub0, unsigned ub1, unsi
 /*
  * optimised Shabal Routine for Burstcoin Mining
  */
-void mshabal64_deadline_fast_avx2(mshabal256_context_fast *sc, void *message, void *termination, void *dst0,
+void mshabal_deadline_fast_avx2(mshabal256_context_fast *sc, void *message, void *termination, void *dst0,
                                     void *dst1, void *dst2, void *dst3, void *dst4, void *dst5,
                                     void *dst6, void *dst7);
 

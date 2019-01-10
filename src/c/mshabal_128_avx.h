@@ -158,7 +158,7 @@ void mshabal_close_avx(mshabal_context *sc, unsigned ub0, unsigned ub1, unsigned
 /*
  * optimised Shabal Routine for Burstcoin Mining
  */
-void mshabal_deadline_avx(mshabal_context_fast *sc, void *message, void *termination, void *dst0,
+void mshabal_deadline_fast_avx(mshabal_context_fast *sc, void *message, void *termination, void *dst0,
                                     void *dst1, void *dst2, void *dst3);
 #ifdef __cplusplus
 }
