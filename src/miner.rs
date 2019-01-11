@@ -430,15 +430,22 @@ impl Miner {
                                     )
                                 );
 
+                                state.sw.restart();
+                                state.processed_reader_tasks = 0;
+                                state.scanning = true;
+
+                                drop(state);
+
+                                info!("DEBUG: borrow reader");
                                 reader.borrow_mut().start_reading(
                                     mining_info.height,
                                     mining_info.base_target,
                                     scoop,
                                     &Arc::new(gensig),
                                 );
-                                state.sw.restart();
-                                state.processed_reader_tasks = 0;
-                                state.scanning = true;
+                                info!("DEBUG: borrow reader end");
+
+                                
                             } else if !state.scanning
                                 && wakeup_after != 0
                                 && state.sw.elapsed_ms() > wakeup_after
@@ -491,23 +498,24 @@ impl Miner {
                                 0,
                             );
                         }
-                    }
-                    if nonce_data.reader_task_processed {
-                        state.processed_reader_tasks += 1;
-                        if state.processed_reader_tasks == reader_task_count {
-                            info!(
-                                "{: <80}",
-                                format!(
-                                    "round finished: roundtime={}ms, speed={:.2}MiB/s",
-                                    state.sw.elapsed_ms(),
-                                    total_size as f64 * 1000.0
-                                        / 1024.0
-                                        / 1024.0
-                                        / state.sw.elapsed_ms() as f64
-                                )
-                            );
-                            state.sw.restart();
-                            state.scanning = false;
+
+                        if nonce_data.reader_task_processed {
+                            state.processed_reader_tasks += 1;
+                            if state.processed_reader_tasks == reader_task_count {
+                                info!(
+                                    "{: <80}",
+                                    format!(
+                                        "round finished: roundtime={}ms, speed={:.2}MiB/s",
+                                        state.sw.elapsed_ms(),
+                                        total_size as f64 * 1000.0
+                                            / 1024.0
+                                            / 1024.0
+                                            / state.sw.elapsed_ms() as f64
+                                    )
+                                );
+                                state.sw.restart();
+                                state.scanning = false;
+                            }
                         }
                     }
                     Ok(())

@@ -1,3 +1,4 @@
+use chan;
 use futures::sync::mpsc;
 use futures::{Future, Sink};
 use libc::{c_void, uint64_t};

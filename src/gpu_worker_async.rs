@@ -5,7 +5,6 @@ use miner::{Buffer, NonceData};
 use ocl::GpuContext;
 use ocl::{gpu_hash, gpu_transfer, gpu_transfer_and_hash};
 use reader::{BufferInfo, ReadReply};
-use std::sync::mpsc::{channel, TryRecvError};
 use std::sync::Arc;
 use std::u64;
 
@@ -31,7 +30,7 @@ pub fn create_gpu_worker_task_async(
             gpu_signal: 0,
         };
         let mut drive_count = 0;
-        let (tx_sink, rx_sink) = channel();
+        let (tx_sink, rx_sink) = chan::bounded(1);
         let mut active_height = 0;
         for read_reply in rx_read_replies {
             let mut buffer = read_reply.buffer;
@@ -73,7 +72,7 @@ pub fn create_gpu_worker_task_async(
             }
 
             // end signal
-            if read_reply.info.gpu_signal == 2 && active_height == read_reply.info.height{
+            if read_reply.info.gpu_signal == 2 && active_height == read_reply.info.height {
                 drive_count += 1;
                 if drive_count == num_drives {
                     if !new_round {
@@ -99,8 +98,7 @@ pub fn create_gpu_worker_task_async(
                             .expect("failed to send nonce data");
                         match rx_sink.try_recv() {
                             Ok(sink_buffer) => tx_empty_buffers.send(sink_buffer).unwrap(),
-                            Err(TryRecvError::Empty) => (),
-                            Err(TryRecvError::Disconnected) => (),
+                            Err(_) => (),
                         }
                     }
                 }

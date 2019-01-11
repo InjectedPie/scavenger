@@ -10,7 +10,6 @@ use plot::Plot;
 use reader::rayon::prelude::*;
 use std::collections::HashMap;
 use std::io::Stdout;
-use std::sync::mpsc::{channel, Sender, TryRecvError};
 use std::sync::RwLock;
 use std::sync::{Arc, Mutex};
 use stopwatch::Stopwatch;
@@ -40,7 +39,7 @@ pub struct Reader {
     tx_empty_buffers: chan::Sender<Box<Buffer + Send>>,
     tx_read_replies_cpu: chan::Sender<ReadReply>,
     tx_read_replies_gpu: Option<chan::Sender<ReadReply>>,
-    interupts: Vec<Sender<()>>,
+    interupts: Vec<chan::Sender<()>>,
     show_progress: bool,
     show_drive_stats: bool,
 }
@@ -116,7 +115,10 @@ impl Reader {
         pb.set_units(Units::Bytes);
         pb.message("Scavenging: ");
         let pb = Arc::new(Mutex::new(pb));
-
+        info!(
+            "DEBUG: send GPU start {} avail",
+            self.rx_empty_buffers.len()
+        );
         // send start signal (dummy buffer) to gpu
         #[cfg(feature = "opencl")]
         self.tx_read_replies_gpu
@@ -136,7 +138,7 @@ impl Reader {
                 },
             })
             .unwrap();
-
+        info!("DEBUG: spawn readers");
         self.interupts = self
             .drive_id_to_plots
             .iter()
@@ -169,6 +171,7 @@ impl Reader {
                 interupt
             })
             .collect();
+        info!("DEBUG: spawn readers end");
     }
 
     pub fn wakeup(&mut self) {
@@ -198,8 +201,8 @@ impl Reader {
         scoop: u32,
         gensig: Arc<[u8; 32]>,
         show_drive_stats: bool,
-    ) -> (Sender<()>, impl FnOnce()) {
-        let (tx_interupt, rx_interupt) = channel();
+    ) -> (chan::Sender<()>, impl FnOnce()) {
+        let (tx_interupt, rx_interupt) = chan::unbounded();
         let rx_empty_buffers = self.rx_empty_buffers.clone();
         let tx_empty_buffers = self.tx_empty_buffers.clone();
         let tx_read_replies_cpu = self.tx_read_replies_cpu.clone();
@@ -240,7 +243,7 @@ impl Reader {
                         }
                     };
 
-                    if rx_interupt.try_recv() != Err(TryRecvError::Empty) {
+                    if rx_interupt.try_recv().is_ok() {
                         buffer.unmap();
                         tx_empty_buffers.send(buffer).unwrap();
                         break 'outer;
@@ -319,8 +322,8 @@ impl Reader {
                     if show_drive_stats {
                         elapsed += sw.elapsed_ms();
                     }
-
-                    // send termination signal (dummy buffer) to gpu
+                    
+                   // send termination signal (dummy buffer) to gpu
                     if finished {
                         #[cfg(feature = "opencl")]
                         tx_read_replies_gpu
@@ -351,7 +354,9 @@ impl Reader {
                                 nonces_processed * 1000 / (elapsed + 1) as u64 * 64 / 1024 / 1024,
                             )
                         );
-                    }
+                    }      
+
+                    buffer.unmap();
 
                     if next_plot {
                         break 'inner;
