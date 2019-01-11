@@ -342,8 +342,8 @@ impl Reader {
                                 buffer: Box::new(CpuBuffer::new(0)) as Box<Buffer + Send>,
                                 info: BufferInfo {
                                     len: 1,
-                                    height: 0,
-                                    base_target: 1,
+                                    height,
+                                    base_target,
                                     gensig: gensig.clone(),
                                     start_nonce: 0,
                                     finished: false,

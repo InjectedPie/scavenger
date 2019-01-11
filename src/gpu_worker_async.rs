@@ -103,6 +103,9 @@ pub fn create_gpu_worker_task_async(
                 }
                 continue;
             }
+            if read_reply.info.gpu_signal == 2 {
+                continue;
+            }
 
             if new_round {
                 gpu_transfer(
@@ -140,7 +143,7 @@ pub fn create_gpu_worker_task_async(
             last_buffer_a = buffer.get_gpu_data();
             last_buffer_info_a = read_reply.info;
             new_round = false;
-            tx_sink.send(buffer).unwrap();
+            tx_sink.send(buffer).expect("GPU async worker failed to cue buffer in sink");
         }
     }
 }
