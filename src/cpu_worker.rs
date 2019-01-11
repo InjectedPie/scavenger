@@ -115,7 +115,9 @@ pub fn hash(
                     .wait()
                     .expect("CPU worker failed to send nonce data");
             }
-            tx_empty_buffers.send(buffer).expect("CPU worker failed to pass through buffer.");
+            tx_empty_buffers
+                .send(buffer)
+                .expect("CPU worker failed to pass through buffer.");
             return;
         }
 
@@ -221,7 +223,9 @@ pub fn hash(
             })
             .wait()
             .expect("CPU worker failed to send nonce data");
-        tx_empty_buffers.send(buffer).expect("CPU worker failed to cue empty buffer");
+        tx_empty_buffers
+            .send(buffer)
+            .expect("CPU worker failed to cue empty buffer");
     }
 }
 

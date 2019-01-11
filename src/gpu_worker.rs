@@ -36,7 +36,9 @@ pub fn create_gpu_worker_task(
                         .wait()
                         .expect("GPU worker failed to send nonce data");
                 }
-                tx_empty_buffers.send(buffer).expect("GPU worker failed to cue empty buffer");
+                tx_empty_buffers
+                    .send(buffer)
+                    .expect("GPU worker failed to cue empty buffer");
                 continue;
             }
 

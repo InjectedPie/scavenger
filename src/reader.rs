@@ -18,7 +18,6 @@ use stopwatch::Stopwatch;
 #[cfg(windows)]
 use utils::set_thread_ideal_processor;
 
-
 pub struct BufferInfo {
     pub len: usize,
     pub height: u64,
@@ -41,7 +40,8 @@ pub struct Reader {
     rx_empty_buffers: chan::Receiver<Box<Buffer + Send>>,
     tx_empty_buffers: chan::Sender<Box<Buffer + Send>>,
     tx_read_replies_cpu: chan::Sender<ReadReply>,
-    tx_read_replies_gpu: Option<chan::Sender<ReadReply>>,
+    tx_read_replies_gpu_a: Option<chan::Sender<ReadReply>>,
+    tx_read_replies_gpu_b: Option<chan::Sender<ReadReply>>,
     interupts: Vec<chan::Sender<()>>,
     show_progress: bool,
     show_drive_stats: bool,
@@ -55,7 +55,8 @@ impl Reader {
         rx_empty_buffers: chan::Receiver<Box<Buffer + Send>>,
         tx_empty_buffers: chan::Sender<Box<Buffer + Send>>,
         tx_read_replies_cpu: chan::Sender<ReadReply>,
-        tx_read_replies_gpu: Option<chan::Sender<ReadReply>>,
+        tx_read_replies_gpu_a: Option<chan::Sender<ReadReply>>,
+        tx_read_replies_gpu_b: Option<chan::Sender<ReadReply>>,
         show_progress: bool,
         show_drive_stats: bool,
         thread_pinning: bool,
@@ -95,7 +96,8 @@ impl Reader {
             rx_empty_buffers,
             tx_empty_buffers,
             tx_read_replies_cpu,
-            tx_read_replies_gpu,
+            tx_read_replies_gpu_a,
+            tx_read_replies_gpu_b,
             interupts: Vec::new(),
             show_progress,
             show_drive_stats,
@@ -125,7 +127,7 @@ impl Reader {
 
         // send start signal (dummy buffer) to gpu
         #[cfg(feature = "opencl")]
-        self.tx_read_replies_gpu
+        self.tx_read_replies_gpu_a
             .as_ref()
             .unwrap()
             .send(ReadReply {
@@ -141,8 +143,25 @@ impl Reader {
                     gpu_signal: 1,
                 },
             })
-            .expect("failed to send readreply data");
-            
+        .expect("Error sending 'round start' signal to GPU thread A");
+        #[cfg(feature = "opencl")]
+        self.tx_read_replies_gpu_b
+            .as_ref()
+            .unwrap()
+            .send(ReadReply {
+                buffer: Box::new(CpuBuffer::new(0)) as Box<Buffer + Send>,
+                info: BufferInfo {
+                    len: 1,
+                    height,
+                    base_target,
+                    gensig: gensig.clone(),
+                    start_nonce: 0,
+                    finished: false,
+                    account_id: 0,
+                    gpu_signal: 1,
+                },
+            })
+            .expect("Error sending 'round start' signal to GPU thread B");
 
         info!("DEBUG: start signal sent");
         info!("DEBUG: spawn readers");
@@ -214,9 +233,13 @@ impl Reader {
         let tx_empty_buffers = self.tx_empty_buffers.clone();
         let tx_read_replies_cpu = self.tx_read_replies_cpu.clone();
         #[cfg(feature = "opencl")]
-        let tx_read_replies_gpu = self.tx_read_replies_gpu.clone();
+        let tx_read_replies_gpu_a = self.tx_read_replies_gpu_a.clone();
         #[cfg(not(feature = "opencl"))]
-        let _tx_read_replies_gpu = self.tx_read_replies_gpu.clone();
+        let _tx_read_replies_gpu_a = self.tx_read_replies_gpu_a.clone();
+        #[cfg(feature = "opencl")]
+        let tx_read_replies_gpu_b = self.tx_read_replies_gpu_b.clone();
+        #[cfg(not(feature = "opencl"))]
+        let _tx_read_replies_gpu_b = self.tx_read_replies_gpu_b.clone();
 
         (tx_interupt, move || {
             let mut sw = Stopwatch::new();
@@ -260,28 +283,9 @@ impl Reader {
                     let finished = i_p == (plot_count - 1) && next_plot;
                     // buffer routing
                     #[cfg(feature = "opencl")]
-                    let gpu_context = buffer.get_gpu_context();
-                    #[cfg(feature = "opencl")]
-                    match &gpu_context {
-                        None => {
-                            tx_read_replies_cpu
-                                .send(ReadReply {
-                                    buffer,
-                                    info: BufferInfo {
-                                        len: bytes_read,
-                                        height,
-                                        base_target,
-                                        gensig: gensig.clone(),
-                                        start_nonce,
-                                        finished,
-                                        account_id: p.account_id,
-                                        gpu_signal: 0,
-                                    },
-                                })
-                                .expect("failed tXXd nonce data");
-                        }
-                        Some(_context) => {
-                            tx_read_replies_gpu
+                    match buffer.get_id() {
+                        1 => {
+                            tx_read_replies_gpu_a
                                 .as_ref()
                                 .unwrap()
                                 .send(ReadReply {
@@ -297,7 +301,43 @@ impl Reader {
                                         gpu_signal: 0,
                                     },
                                 })
-                                .expect("faiCCto send nonce data");
+                                .expect("failed to send read data to GPU thread A");
+                        }
+                        2 => {
+                            tx_read_replies_gpu_b
+                                .as_ref()
+                                .unwrap()
+                                .send(ReadReply {
+                                    buffer,
+                                    info: BufferInfo {
+                                        len: bytes_read,
+                                        height,
+                                        base_target,
+                                        gensig: gensig.clone(),
+                                        start_nonce,
+                                        finished,
+                                        account_id: p.account_id,
+                                        gpu_signal: 0,
+                                    },
+                                })
+                                .expect("failed to send read data to GPU thread B");
+                        }
+                        _ => {
+                            tx_read_replies_cpu
+                                .send(ReadReply {
+                                    buffer,
+                                    info: BufferInfo {
+                                        len: bytes_read,
+                                        height,
+                                        base_target,
+                                        gensig: gensig.clone(),
+                                        start_nonce,
+                                        finished,
+                                        account_id: p.account_id,
+                                        gpu_signal: 0,
+                                    },
+                                })
+                                .expect("failed to send read data to CPU thread");
                         }
                     }
                     #[cfg(not(feature = "opencl"))]
@@ -335,7 +375,7 @@ impl Reader {
                     if finished {
                         info!("term start");
                         #[cfg(feature = "opencl")]
-                        tx_read_replies_gpu
+                        tx_read_replies_gpu_a
                             .as_ref()
                             .unwrap()
                             .send(ReadReply {
@@ -351,8 +391,26 @@ impl Reader {
                                     gpu_signal: 2,
                                 },
                             })
-                            .expect("term end error");
-                              info!("term end");
+                            .expect("Error sending 'drive finished' signal to GPU thread A");
+                        #[cfg(feature = "opencl")]
+                        tx_read_replies_gpu_b
+                            .as_ref()
+                            .unwrap()
+                            .send(ReadReply {
+                                buffer: Box::new(CpuBuffer::new(0)) as Box<Buffer + Send>,
+                                info: BufferInfo {
+                                    len: 1,
+                                    height,
+                                    base_target,
+                                    gensig: gensig.clone(),
+                                    start_nonce: 0,
+                                    finished: false,
+                                    account_id: 0,
+                                    gpu_signal: 2,
+                                },
+                            })
+                            .expect("Error sending 'drive finished' signal to GPU thread B");
+                        info!("term end");
                     }
 
                     if finished && show_drive_stats {

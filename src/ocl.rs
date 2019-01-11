@@ -179,6 +179,7 @@ pub struct GpuBuffer {
     buffer_host: Option<core::Mem>,
     context: Arc<GpuContext>,
     data_gpu: core::Mem,
+    id: usize,
 }
 
 impl GpuContext {
@@ -265,7 +266,7 @@ impl GpuContext {
 }
 
 impl GpuBuffer {
-    pub fn new(context: &Arc<GpuContext>) -> Self {
+    pub fn new(context: &Arc<GpuContext>, id: usize) -> Self {
         // create buffers
         // mapping = zero copy buffers, no mapping = pinned memory for fast DMA.
         if context.mapping {
@@ -318,6 +319,7 @@ impl GpuBuffer {
                 buffer_host: None,
                 context: context.clone(),
                 data_gpu,
+                id,
             }
         } else {
             let buffer_host = unsafe {
@@ -378,6 +380,7 @@ impl GpuBuffer {
                 buffer_host,
                 context: context.clone(),
                 data_gpu,
+                id,
             }
         }
     }
@@ -404,13 +407,8 @@ impl Buffer for GpuBuffer {
         }
         self.data.clone()
     }
-
     fn get_buffer(&mut self) -> Arc<Mutex<Vec<u8>>> {
         self.data.clone()
-    }
-
-    fn get_gpu_context(&self) -> Option<Arc<GpuContext>> {
-        Some(self.context.clone())
     }
     fn get_gpu_buffers(&self) -> Option<&GpuBuffer> {
         Some(self)
@@ -418,7 +416,6 @@ impl Buffer for GpuBuffer {
     fn get_gpu_data(&self) -> Option<core::Mem> {
         Some(self.data_gpu.clone())
     }
-
     fn unmap(&self) {
         if self.context.mapping {
             core::enqueue_unmap_mem_object(
@@ -430,6 +427,9 @@ impl Buffer for GpuBuffer {
             )
             .unwrap();
         }
+    }
+    fn get_id(&self) -> usize {
+        self.id
     }
 }
 

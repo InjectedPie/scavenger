@@ -52,7 +52,9 @@ pub fn create_gpu_worker_task_async(
                         .wait()
                         .expect("GPU async worker failed to send nonce data");
                 }
-                tx_empty_buffers.send(buffer).expect("GPU async worker failed to cue empty buffer");
+                tx_empty_buffers
+                    .send(buffer)
+                    .expect("GPU async worker failed to cue empty buffer");
                 continue;
             }
 
@@ -60,7 +62,9 @@ pub fn create_gpu_worker_task_async(
             if read_reply.info.gpu_signal == 1 {
                 if !new_round {
                     match rx_sink.try_recv() {
-                        Ok(sink_buffer) => tx_empty_buffers.send(sink_buffer).expect("GPU async worker failed to cue empty buffer from sink"),
+                        Ok(sink_buffer) => tx_empty_buffers
+                            .send(sink_buffer)
+                            .expect("GPU async worker failed to cue empty buffer from sink"),
                         Err(_) => (),
                     }
                 }
@@ -96,7 +100,9 @@ pub fn create_gpu_worker_task_async(
                             .wait()
                             .expect("GPU async worker failed to send nonce data");
                         match rx_sink.try_recv() {
-                            Ok(sink_buffer) => tx_empty_buffers.send(sink_buffer).expect("GPU async worker failed to cue empty buffer from sink"),
+                            Ok(sink_buffer) => tx_empty_buffers
+                                .send(sink_buffer)
+                                .expect("GPU async worker failed to cue empty buffer from sink"),
                             Err(_) => (),
                         }
                     }
@@ -136,14 +142,18 @@ pub fn create_gpu_worker_task_async(
                     .wait()
                     .expect("GPU async worker failed to cue empty buffer");
                 match rx_sink.try_recv() {
-                    Ok(sink_buffer) => tx_empty_buffers.send(sink_buffer).expect("GPU async worker failed to cue empty buffer from sink"),
+                    Ok(sink_buffer) => tx_empty_buffers
+                        .send(sink_buffer)
+                        .expect("GPU async worker failed to cue empty buffer from sink"),
                     Err(_) => (),
                 }
             }
             last_buffer_a = buffer.get_gpu_data();
             last_buffer_info_a = read_reply.info;
             new_round = false;
-            tx_sink.send(buffer).expect("GPU async worker failed to cue buffer in sink");
+            tx_sink
+                .send(buffer)
+                .expect("GPU async worker failed to cue buffer in sink");
         }
     }
 }
