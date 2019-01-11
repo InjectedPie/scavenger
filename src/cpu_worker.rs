@@ -113,9 +113,14 @@ pub fn hash(
                         account_id: read_reply.info.account_id,
                     })
                     .wait()
-                    .expect("failed to send nonce data");
+                    .expect("CPU worker failed to send nonce data");
             }
-            tx_empty_buffers.send(buffer).unwrap();
+            tx_empty_buffers.send(buffer).expect("CPU worker failed to pass through buffer.");
+            return;
+        }
+
+        // ignore signals
+        if read_reply.info.len == 1 && read_reply.info.gpu_signal > 0 {
             return;
         }
 
@@ -215,8 +220,8 @@ pub fn hash(
                 account_id: read_reply.info.account_id,
             })
             .wait()
-            .expect("failed to send nonce data");
-        tx_empty_buffers.send(buffer).unwrap();
+            .expect("CPU worker failed to send nonce data");
+        tx_empty_buffers.send(buffer).expect("CPU worker failed to cue empty buffer");
     }
 }
 

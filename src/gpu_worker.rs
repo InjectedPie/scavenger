@@ -13,7 +13,6 @@ pub fn create_gpu_worker_task(
     rx_read_replies: chan::Receiver<ReadReply>,
     tx_empty_buffers: chan::Sender<Box<Buffer + Send>>,
     tx_nonce_data: mpsc::Sender<NonceData>,
-    rx_gpu_signal: chan::Receiver<u64>,
     context_mu: Arc<GpuContext>,
 ) -> impl FnOnce() {
     move || {
@@ -35,14 +34,16 @@ pub fn create_gpu_worker_task(
                             account_id: read_reply.info.account_id,
                         })
                         .wait()
-                        .expect("failed to send nonce data");
+                        .expect("GPU worker failed to send nonce data");
                 }
-                tx_empty_buffers.send(buffer).unwrap();
+                tx_empty_buffers.send(buffer).expect("GPU worker failed to cue empty buffer");
                 continue;
             }
 
             // consume and ignore all signals
-            let _v: Vec<_> = rx_gpu_signal.try_iter().collect();
+            if read_reply.info.len == 1 && read_reply.info.gpu_signal > 0 {
+                continue;
+            }
 
             gpu_transfer(
                 context_mu.clone(),
@@ -68,7 +69,7 @@ pub fn create_gpu_worker_task(
                     account_id: read_reply.info.account_id,
                 })
                 .wait()
-                .expect("failed to send nonce data");
+                .expect("GPU worker failed to cue empty buffer");
 
             tx_empty_buffers.send(buffer).unwrap();
         }

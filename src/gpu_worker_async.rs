@@ -13,7 +13,6 @@ pub fn create_gpu_worker_task_async(
     rx_read_replies: chan::Receiver<ReadReply>,
     tx_empty_buffers: chan::Sender<Box<Buffer + Send>>,
     tx_nonce_data: mpsc::Sender<NonceData>,
-    rx_gpu_signal: chan::Receiver<u64>,
     context_mu: Arc<GpuContext>,
     num_drives: usize,
 ) -> impl FnOnce() {
@@ -35,9 +34,9 @@ pub fn create_gpu_worker_task_async(
         let mut active_height = 0;
         for read_reply in rx_read_replies {
             let mut buffer = read_reply.buffer;
-
-            // process benchmark mode
+            // handle empty buffers (read errors) && benchmark
             if read_reply.info.len == 0 && benchmark {
+                // forward 'drive finished signal'
                 if read_reply.info.finished {
                     let deadline = u64::MAX;
                     tx_nonce_data
@@ -51,9 +50,9 @@ pub fn create_gpu_worker_task_async(
                             account_id: read_reply.info.account_id,
                         })
                         .wait()
-                        .expect("failed to send nonce data");
+                        .expect("GPU async worker failed to send nonce data");
                 }
-                tx_empty_buffers.send(buffer).unwrap();
+                tx_empty_buffers.send(buffer).expect("GPU async worker failed to cue empty buffer");
                 continue;
             }
 
@@ -61,14 +60,13 @@ pub fn create_gpu_worker_task_async(
             if read_reply.info.gpu_signal == 1 {
                 if !new_round {
                     match rx_sink.try_recv() {
-                        Ok(sink_buffer) => tx_empty_buffers.send(sink_buffer).unwrap(),
+                        Ok(sink_buffer) => tx_empty_buffers.send(sink_buffer).expect("GPU async worker failed to cue empty buffer from sink"),
                         Err(_) => (),
                     }
                 }
                 drive_count = 0;
                 active_height = read_reply.info.height;
                 new_round = true;
-                tx_empty_buffers.send(buffer).unwrap();
                 continue;
             }
 
@@ -96,14 +94,13 @@ pub fn create_gpu_worker_task_async(
                                 account_id: last_buffer_info_a.account_id,
                             })
                             .wait()
-                            .expect("failed to send nonce data");
+                            .expect("GPU async worker failed to send nonce data");
                         match rx_sink.try_recv() {
-                            Ok(sink_buffer) => tx_empty_buffers.send(sink_buffer).unwrap(),
+                            Ok(sink_buffer) => tx_empty_buffers.send(sink_buffer).expect("GPU async worker failed to cue empty buffer from sink"),
                             Err(_) => (),
                         }
                     }
                 }
-                tx_empty_buffers.send(buffer).unwrap();
                 continue;
             }
 
@@ -134,9 +131,9 @@ pub fn create_gpu_worker_task_async(
                         account_id: last_buffer_info_a.account_id,
                     })
                     .wait()
-                    .expect("failed to send nonce data");
+                    .expect("GPU async worker failed to cue empty buffer");
                 match rx_sink.try_recv() {
-                    Ok(sink_buffer) => tx_empty_buffers.send(sink_buffer).unwrap(),
+                    Ok(sink_buffer) => tx_empty_buffers.send(sink_buffer).expect("GPU async worker failed to cue empty buffer from sink"),
                     Err(_) => (),
                 }
             }

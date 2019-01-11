@@ -230,7 +230,7 @@ impl RequestHandler {
     }
 
     fn uri_for(&self, path: &str) -> hyper::Uri {
-        (self.base_uri.clone() + path).parse().unwrap()
+        (self.base_uri.clone() + path).parse().expect("Failed to parse Server URL, please check format!")
     }
 
     fn post_req(&self, path: &str) -> Request<hyper::Body> {

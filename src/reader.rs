@@ -6,6 +6,10 @@ use chan;
 use core_affinity;
 use filetime::FileTime;
 use miner::Buffer;
+#[cfg(feature = "opencl")]
+use ocl::GpuBuffer;
+#[cfg(feature = "opencl")]
+use ocl::GpuContext;
 use plot::Plot;
 use reader::rayon::prelude::*;
 use std::collections::HashMap;
@@ -15,6 +19,44 @@ use std::sync::{Arc, Mutex};
 use stopwatch::Stopwatch;
 #[cfg(windows)]
 use utils::set_thread_ideal_processor;
+#[cfg(feature = "opencl")]
+extern crate ocl_core as core;
+
+#[cfg(feature = "opencl")]
+pub struct EmptyBuffer {
+    data: Arc<Mutex<Vec<u8>>>,
+}
+
+#[cfg(feature = "opencl")]
+impl EmptyBuffer {
+    pub fn new() -> Self {
+        let data = vec![1u8; 0];
+        EmptyBuffer {
+            data: Arc::new(Mutex::new(data)),
+        }
+    }
+}
+
+//unsafe impl Send for EmptyBuffer {}
+#[cfg(feature = "opencl")]
+impl Buffer for EmptyBuffer {
+    fn get_buffer_for_writing(&mut self) -> Arc<Mutex<Vec<u8>>> {
+        self.data.clone()
+    }
+    fn get_buffer(&mut self) -> Arc<Mutex<Vec<u8>>> {
+        self.data.clone()
+    }
+    fn get_gpu_context(&self) -> Option<Arc<GpuContext>> {
+        None
+    }
+    fn get_gpu_buffers(&self) -> Option<&GpuBuffer> {
+        None
+    }
+    fn get_gpu_data(&self) -> Option<core::Mem> {
+        None
+    }
+    fn unmap(&self) {}
+}
 
 pub struct BufferInfo {
     pub len: usize,
@@ -39,7 +81,6 @@ pub struct Reader {
     tx_empty_buffers: chan::Sender<Box<Buffer + Send>>,
     tx_read_replies_cpu: chan::Sender<ReadReply>,
     tx_read_replies_gpu: Option<chan::Sender<ReadReply>>,
-    tx_gpu_signal: Option<chan::Sender<u64>>,
     interupts: Vec<chan::Sender<()>>,
     show_progress: bool,
     show_drive_stats: bool,
@@ -54,7 +95,6 @@ impl Reader {
         tx_empty_buffers: chan::Sender<Box<Buffer + Send>>,
         tx_read_replies_cpu: chan::Sender<ReadReply>,
         tx_read_replies_gpu: Option<chan::Sender<ReadReply>>,
-        tx_gpu_signal: Option<chan::Sender<u64>>,
         show_progress: bool,
         show_drive_stats: bool,
         thread_pinning: bool,
@@ -95,7 +135,6 @@ impl Reader {
             tx_empty_buffers,
             tx_read_replies_cpu,
             tx_read_replies_gpu,
-            tx_gpu_signal,
             interupts: Vec::new(),
             show_progress,
             show_drive_stats,
@@ -122,14 +161,29 @@ impl Reader {
             "DEBUG: send GPU start {} avail",
             self.rx_empty_buffers.len()
         );
-        // send start signal
+
+        // send start signal (dummy buffer) to gpu
         #[cfg(feature = "opencl")]
-        self.tx_gpu_signal
+        self.tx_read_replies_gpu
             .as_ref()
             .unwrap()
-            .send(1)
-            .unwrap();
-        info!("DEBUG: start signal sent");   
+            .send(ReadReply {
+                buffer: Box::new(EmptyBuffer::new()) as Box<Buffer + Send>,
+                info: BufferInfo {
+                    len: 1,
+                    height,
+                    base_target,
+                    gensig: gensig.clone(),
+                    start_nonce: 0,
+                    finished: false,
+                    account_id: 0,
+                    gpu_signal: 1,
+                },
+            })
+            .expect("failed to send readreply data");
+            
+
+        info!("DEBUG: start signal sent");
         info!("DEBUG: spawn readers");
         self.interupts = self
             .drive_id_to_plots
@@ -202,11 +256,7 @@ impl Reader {
         let tx_read_replies_gpu = self.tx_read_replies_gpu.clone();
         #[cfg(not(feature = "opencl"))]
         let _tx_read_replies_gpu = self.tx_read_replies_gpu.clone();
-        #[cfg(feature = "opencl")]
-        let tx_gpu_signal = self.tx_gpu_signal.clone();
-        #[cfg(not(feature = "opencl"))]
-        let _tx_gpu_signal = self.tx_gpu_signal.clone();
-        
+
         (tx_interupt, move || {
             let mut sw = Stopwatch::new();
             let mut elapsed = 0i64;
@@ -267,7 +317,7 @@ impl Reader {
                                         gpu_signal: 0,
                                     },
                                 })
-                                .unwrap();
+                                .expect("failed tXXd nonce data");
                         }
                         Some(_context) => {
                             tx_read_replies_gpu
@@ -286,7 +336,7 @@ impl Reader {
                                         gpu_signal: 0,
                                     },
                                 })
-                                .unwrap();
+                                .expect("faiCCto send nonce data");
                         }
                     }
                     #[cfg(not(feature = "opencl"))]
@@ -319,11 +369,29 @@ impl Reader {
                     if show_drive_stats {
                         elapsed += sw.elapsed_ms();
                     }
-                    
-                    // send termination signal
+
+                    // send termination signal (dummy buffer) to gpu
                     if finished {
+                        info!("term start");
                         #[cfg(feature = "opencl")]
-                        tx_gpu_signal.as_ref().unwrap().send(2).unwrap();
+                        tx_read_replies_gpu
+                            .as_ref()
+                            .unwrap()
+                            .send(ReadReply {
+                                buffer: Box::new(EmptyBuffer::new()) as Box<Buffer + Send>,
+                                info: BufferInfo {
+                                    len: 1,
+                                    height: 0,
+                                    base_target: 1,
+                                    gensig: gensig.clone(),
+                                    start_nonce: 0,
+                                    finished: false,
+                                    account_id: 0,
+                                    gpu_signal: 2,
+                                },
+                            })
+                            .expect("term end error");
+                              info!("term end");
                     }
 
                     if finished && show_drive_stats {
@@ -335,7 +403,7 @@ impl Reader {
                                 nonces_processed * 1000 / (elapsed + 1) as u64 * 64 / 1024 / 1024,
                             )
                         );
-                    }      
+                    }
 
                     if next_plot {
                         break 'inner;

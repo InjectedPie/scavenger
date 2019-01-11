@@ -258,7 +258,7 @@ impl Miner {
         let (tx_empty_buffers, rx_empty_buffers) = chan::bounded(buffer_count as usize);
         let (tx_read_replies_cpu, rx_read_replies_cpu) = chan::bounded(cpu_buffer_count);
         #[cfg(feature = "opencl")]
-        let (tx_read_replies_gpu, rx_read_replies_gpu) = chan::bounded(gpu_buffer_count);
+        let (tx_read_replies_gpu, rx_read_replies_gpu) = chan::unbounded();
 
         #[cfg(feature = "opencl")]
         let context = Arc::new(GpuContext::new(
@@ -288,8 +288,6 @@ impl Miner {
         }
 
         let (tx_nonce_data, rx_nonce_data) = mpsc::channel(buffer_count);
-        #[cfg(feature = "opencl")]
-        let (tx_gpu_signal, rx_gpu_signal) = chan::unbounded();
 
         let thread_pinning = cfg.cpu_thread_pinning;
 
@@ -324,7 +322,6 @@ impl Miner {
                     rx_read_replies_gpu.clone(),
                     tx_empty_buffers.clone(),
                     tx_nonce_data.clone(),
-                    rx_gpu_signal.clone(),
                     context,
                     drive_id_to_plots.len(),
                 )
@@ -337,7 +334,6 @@ impl Miner {
                     rx_read_replies_gpu.clone(),
                     tx_empty_buffers.clone(),
                     tx_nonce_data.clone(),
-                    rx_gpu_signal.clone(),
                     context,
                 )
             });
@@ -347,11 +343,6 @@ impl Miner {
         let tx_read_replies_gpu = Some(tx_read_replies_gpu);
         #[cfg(not(feature = "opencl"))]
         let tx_read_replies_gpu = None;
-
-        #[cfg(feature = "opencl")]
-        let tx_gpu_signal2 = Some(tx_gpu_signal.clone());
-        #[cfg(not(feature = "opencl"))]
-        let tx_gpu_signal2 = None;
 
         let core = Core::new().unwrap();
         Miner {
@@ -364,7 +355,6 @@ impl Miner {
                 tx_empty_buffers,
                 tx_read_replies_cpu,
                 tx_read_replies_gpu,
-                tx_gpu_signal2,
                 cfg.show_progress,
                 cfg.show_drive_stats,
                 cfg.cpu_thread_pinning,
@@ -454,8 +444,6 @@ impl Miner {
                                     &Arc::new(gensig),
                                 );
                                 info!("DEBUG: borrow reader end");
-
-                                
                             } else if !state.scanning
                                 && wakeup_after != 0
                                 && state.sw.elapsed_ms() > wakeup_after
