@@ -13,6 +13,7 @@ pub fn create_gpu_worker_task(
     rx_read_replies: chan::Receiver<ReadReply>,
     tx_empty_buffers: chan::Sender<Box<Buffer + Send>>,
     tx_nonce_data: mpsc::Sender<NonceData>,
+    rx_gpu_signal: chan::Receiver<u64>,
     context_mu: Arc<GpuContext>,
 ) -> impl FnOnce() {
     move || {
@@ -40,11 +41,8 @@ pub fn create_gpu_worker_task(
                 continue;
             }
 
-            // ignore all signals
-            if read_reply.info.gpu_signal > 0 {
-                tx_empty_buffers.send(buffer).unwrap();
-                continue;
-            }
+            // consume and ignore all signals
+            let _v: Vec<_> = rx_gpu_signal.try_iter().collect();
 
             gpu_transfer(
                 context_mu.clone(),

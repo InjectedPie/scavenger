@@ -288,6 +288,8 @@ impl Miner {
         }
 
         let (tx_nonce_data, rx_nonce_data) = mpsc::channel(buffer_count);
+        #[cfg(feature = "opencl")]
+        let (tx_gpu_signal, rx_gpu_signal) = chan::unbounded();
 
         let thread_pinning = cfg.cpu_thread_pinning;
 
@@ -322,6 +324,7 @@ impl Miner {
                     rx_read_replies_gpu.clone(),
                     tx_empty_buffers.clone(),
                     tx_nonce_data.clone(),
+                    rx_gpu_signal.clone(),
                     context,
                     drive_id_to_plots.len(),
                 )
@@ -334,6 +337,7 @@ impl Miner {
                     rx_read_replies_gpu.clone(),
                     tx_empty_buffers.clone(),
                     tx_nonce_data.clone(),
+                    rx_gpu_signal.clone(),
                     context,
                 )
             });
@@ -343,6 +347,11 @@ impl Miner {
         let tx_read_replies_gpu = Some(tx_read_replies_gpu);
         #[cfg(not(feature = "opencl"))]
         let tx_read_replies_gpu = None;
+
+        #[cfg(feature = "opencl")]
+        let tx_gpu_signal2 = Some(tx_gpu_signal.clone());
+        #[cfg(not(feature = "opencl"))]
+        let tx_gpu_signal2 = None;
 
         let core = Core::new().unwrap();
         Miner {
@@ -355,6 +364,7 @@ impl Miner {
                 tx_empty_buffers,
                 tx_read_replies_cpu,
                 tx_read_replies_gpu,
+                tx_gpu_signal2,
                 cfg.show_progress,
                 cfg.show_drive_stats,
                 cfg.cpu_thread_pinning,

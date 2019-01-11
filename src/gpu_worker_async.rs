@@ -13,6 +13,7 @@ pub fn create_gpu_worker_task_async(
     rx_read_replies: chan::Receiver<ReadReply>,
     tx_empty_buffers: chan::Sender<Box<Buffer + Send>>,
     tx_nonce_data: mpsc::Sender<NonceData>,
+    rx_gpu_signal: chan::Receiver<u64>,
     context_mu: Arc<GpuContext>,
     num_drives: usize,
 ) -> impl FnOnce() {

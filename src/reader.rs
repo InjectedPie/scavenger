@@ -39,6 +39,7 @@ pub struct Reader {
     tx_empty_buffers: chan::Sender<Box<Buffer + Send>>,
     tx_read_replies_cpu: chan::Sender<ReadReply>,
     tx_read_replies_gpu: Option<chan::Sender<ReadReply>>,
+    tx_gpu_signal: Option<chan::Sender<u64>>,
     interupts: Vec<chan::Sender<()>>,
     show_progress: bool,
     show_drive_stats: bool,
@@ -53,6 +54,7 @@ impl Reader {
         tx_empty_buffers: chan::Sender<Box<Buffer + Send>>,
         tx_read_replies_cpu: chan::Sender<ReadReply>,
         tx_read_replies_gpu: Option<chan::Sender<ReadReply>>,
+        tx_gpu_signal: Option<chan::Sender<u64>>,
         show_progress: bool,
         show_drive_stats: bool,
         thread_pinning: bool,
@@ -93,6 +95,7 @@ impl Reader {
             tx_empty_buffers,
             tx_read_replies_cpu,
             tx_read_replies_gpu,
+            tx_gpu_signal,
             interupts: Vec::new(),
             show_progress,
             show_drive_stats,
@@ -119,25 +122,14 @@ impl Reader {
             "DEBUG: send GPU start {} avail",
             self.rx_empty_buffers.len()
         );
-        // send start signal (dummy buffer) to gpu
+        // send start signal
         #[cfg(feature = "opencl")]
-        self.tx_read_replies_gpu
+        self.tx_gpu_signal
             .as_ref()
             .unwrap()
-            .send(ReadReply {
-                buffer: self.rx_empty_buffers.recv().unwrap(),
-                info: BufferInfo {
-                    len: 1,
-                    height,
-                    base_target,
-                    gensig: gensig.clone(),
-                    start_nonce: 0,
-                    finished: false,
-                    account_id: 0,
-                    gpu_signal: 1,
-                },
-            })
+            .send(1)
             .unwrap();
+        info!("DEBUG: start signal sent");   
         info!("DEBUG: spawn readers");
         self.interupts = self
             .drive_id_to_plots
@@ -210,6 +202,11 @@ impl Reader {
         let tx_read_replies_gpu = self.tx_read_replies_gpu.clone();
         #[cfg(not(feature = "opencl"))]
         let _tx_read_replies_gpu = self.tx_read_replies_gpu.clone();
+        #[cfg(feature = "opencl")]
+        let tx_gpu_signal = self.tx_gpu_signal.clone();
+        #[cfg(not(feature = "opencl"))]
+        let _tx_gpu_signal = self.tx_gpu_signal.clone();
+        
         (tx_interupt, move || {
             let mut sw = Stopwatch::new();
             let mut elapsed = 0i64;
@@ -323,26 +320,10 @@ impl Reader {
                         elapsed += sw.elapsed_ms();
                     }
                     
-                   // send termination signal (dummy buffer) to gpu
+                    // send termination signal
                     if finished {
                         #[cfg(feature = "opencl")]
-                        tx_read_replies_gpu
-                            .as_ref()
-                            .unwrap()
-                            .send(ReadReply {
-                                buffer: rx_empty_buffers.recv().unwrap(),
-                                info: BufferInfo {
-                                    len: 1,
-                                    height: 0,
-                                    base_target: 1,
-                                    gensig: gensig.clone(),
-                                    start_nonce: 0,
-                                    finished: false,
-                                    account_id: 0,
-                                    gpu_signal: 2,
-                                },
-                            })
-                            .unwrap();
+                        tx_gpu_signal.as_ref().unwrap().send(2).unwrap();
                     }
 
                     if finished && show_drive_stats {
@@ -355,8 +336,6 @@ impl Reader {
                             )
                         );
                     }      
-
-                    buffer.unmap();
 
                     if next_plot {
                         break 'inner;
