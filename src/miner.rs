@@ -86,7 +86,7 @@ pub struct CpuBuffer {
 }
 
 impl CpuBuffer {
-    fn new(buffer_size: usize) -> Self {
+    pub fn new(buffer_size: usize) -> Self {
         let data = vec![1u8; buffer_size];
         CpuBuffer {
             data: Arc::new(Mutex::new(data)),

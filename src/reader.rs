@@ -7,9 +7,7 @@ use core_affinity;
 use filetime::FileTime;
 use miner::Buffer;
 #[cfg(feature = "opencl")]
-use ocl::GpuBuffer;
-#[cfg(feature = "opencl")]
-use ocl::GpuContext;
+use miner::CpuBuffer;
 use plot::Plot;
 use reader::rayon::prelude::*;
 use std::collections::HashMap;
@@ -19,44 +17,7 @@ use std::sync::{Arc, Mutex};
 use stopwatch::Stopwatch;
 #[cfg(windows)]
 use utils::set_thread_ideal_processor;
-#[cfg(feature = "opencl")]
-extern crate ocl_core as core;
 
-#[cfg(feature = "opencl")]
-pub struct EmptyBuffer {
-    data: Arc<Mutex<Vec<u8>>>,
-}
-
-#[cfg(feature = "opencl")]
-impl EmptyBuffer {
-    pub fn new() -> Self {
-        let data = vec![1u8; 0];
-        EmptyBuffer {
-            data: Arc::new(Mutex::new(data)),
-        }
-    }
-}
-
-//unsafe impl Send for EmptyBuffer {}
-#[cfg(feature = "opencl")]
-impl Buffer for EmptyBuffer {
-    fn get_buffer_for_writing(&mut self) -> Arc<Mutex<Vec<u8>>> {
-        self.data.clone()
-    }
-    fn get_buffer(&mut self) -> Arc<Mutex<Vec<u8>>> {
-        self.data.clone()
-    }
-    fn get_gpu_context(&self) -> Option<Arc<GpuContext>> {
-        None
-    }
-    fn get_gpu_buffers(&self) -> Option<&GpuBuffer> {
-        None
-    }
-    fn get_gpu_data(&self) -> Option<core::Mem> {
-        None
-    }
-    fn unmap(&self) {}
-}
 
 pub struct BufferInfo {
     pub len: usize,
@@ -168,7 +129,7 @@ impl Reader {
             .as_ref()
             .unwrap()
             .send(ReadReply {
-                buffer: Box::new(EmptyBuffer::new()) as Box<Buffer + Send>,
+                buffer: Box::new(CpuBuffer::new(0)) as Box<Buffer + Send>,
                 info: BufferInfo {
                     len: 1,
                     height,
@@ -378,7 +339,7 @@ impl Reader {
                             .as_ref()
                             .unwrap()
                             .send(ReadReply {
-                                buffer: Box::new(EmptyBuffer::new()) as Box<Buffer + Send>,
+                                buffer: Box::new(CpuBuffer::new(0)) as Box<Buffer + Send>,
                                 info: BufferInfo {
                                     len: 1,
                                     height: 0,
