@@ -61,7 +61,7 @@ pub fn platform_info() {
             .unwrap();
             let kernel1 = core::create_kernel(&program, "calculate_deadlines").unwrap();
             let kernel2 = core::create_kernel(&program, "find_min").unwrap();
-            let cores = get_cores(device_id) as usize;
+            let cores = get_cores(*device_id) as usize;
             let kernel1_workgroup_size = get_kernel_work_group_size(&kernel1, *device_id);
             let kernel2_workgroup_size = get_kernel_work_group_size(&kernel2, *device_id);
             info!(
@@ -109,7 +109,7 @@ pub fn gpu_info(cfg: &Cfg) {
             if cfg.gpu_async {
                 cfg.gpu_worker_task_count + 2 * cfg.gpu_threads
             } else {
-                cfg.gpu_worker_task_count + 1 * cfg.gpu_threads
+                cfg.gpu_worker_task_count + cfg.gpu_threads
             }
         } else {
             0
@@ -290,7 +290,7 @@ impl GpuBuffer {
                         true,
                         core::MAP_WRITE,
                         0,
-                        (SCOOP_SIZE as usize) * &context.gdim1[0],
+                        (SCOOP_SIZE as usize) * context.gdim1[0],
                         None::<Event>,
                         None::<&mut Event>,
                     )
@@ -302,7 +302,7 @@ impl GpuBuffer {
             let boxed_slice = unsafe {
                 Box::<[u8]>::from_raw(from_raw_parts_mut(
                     ptr,
-                    (SCOOP_SIZE as usize) * &context.gdim1[0],
+                    (SCOOP_SIZE as usize) * context.gdim1[0],
                 ))
             };
             let data = Arc::new(Mutex::new(boxed_slice.into_vec()));
@@ -371,7 +371,7 @@ impl GpuBuffer {
             let boxed_slice = unsafe {
                 Box::<[u8]>::from_raw(from_raw_parts_mut(
                     ptr,
-                    (SCOOP_SIZE as usize) * &context.gdim1[0],
+                    (SCOOP_SIZE as usize) * context.gdim1[0],
                 ))
             };
             let data = Arc::new(Mutex::new(boxed_slice.into_vec()));
@@ -439,12 +439,12 @@ impl Buffer for GpuBuffer {
 unsafe impl Sync for GpuContext {}
 unsafe impl Send for GpuBuffer {}
 
-pub fn gpu_transfer(gpu_context: Arc<GpuContext>, buffer: &GpuBuffer, gensig: [u8; 32]) {
-    upload_gensig(gpu_context.clone(), gensig, true);
-    transfer_buffer_to_gpu(gpu_context, buffer, true);
+pub fn gpu_transfer(gpu_context: &Arc<GpuContext>, buffer: &GpuBuffer, gensig: [u8; 32]) {
+    upload_gensig(&gpu_context, gensig, true);
+    transfer_buffer_to_gpu(&gpu_context, buffer, true);
 }
 
-fn upload_gensig(gpu_context: Arc<GpuContext>, gensig: [u8; 32], blocking: bool) {
+fn upload_gensig(gpu_context: &Arc<GpuContext>, gensig: [u8; 32], blocking: bool) {
     unsafe {
         core::enqueue_write_buffer(
             &gpu_context.queue_compute,
@@ -459,7 +459,7 @@ fn upload_gensig(gpu_context: Arc<GpuContext>, gensig: [u8; 32], blocking: bool)
     }
 }
 
-fn transfer_buffer_to_gpu(gpu_context: Arc<GpuContext>, buffer: &GpuBuffer, blocking: bool) {
+fn transfer_buffer_to_gpu(gpu_context: &Arc<GpuContext>, buffer: &GpuBuffer, blocking: bool) {
     let data = buffer.data.clone();
     let data2 = (*data).lock().unwrap();
     if gpu_context.mapping {
@@ -489,27 +489,27 @@ fn transfer_buffer_to_gpu(gpu_context: Arc<GpuContext>, buffer: &GpuBuffer, bloc
 }
 
 pub fn gpu_transfer_and_hash(
-    gpu_context: Arc<GpuContext>,
+    gpu_context: &Arc<GpuContext>,
     buffer: &GpuBuffer,
     nonce_count: usize,
     data_gpu: &core::Mem,
 ) -> (u64, u64) {
-    transfer_buffer_to_gpu(gpu_context.clone(), buffer, false);
-    let result = gpu_hash(gpu_context.clone(), nonce_count, data_gpu);
+    transfer_buffer_to_gpu(&gpu_context, buffer, false);
+    let result = gpu_hash(&gpu_context, nonce_count, data_gpu);
     core::finish(&gpu_context.queue_transfer).unwrap();
     result
 }
 
 pub fn gpu_hash(
-    gpu_context: Arc<GpuContext>,
+    gpu_context: &Arc<GpuContext>,
     nonce_count: usize,
     data_gpu: &core::Mem,
 ) -> (u64, u64) {
-    hash(gpu_context.clone(), nonce_count, data_gpu);
-    get_result(gpu_context)
+    hash(&gpu_context, nonce_count, data_gpu);
+    get_result(&gpu_context)
 }
 
-fn hash(gpu_context: Arc<GpuContext>, nonce_count: usize, data_gpu: &core::Mem) {
+fn hash(gpu_context: &Arc<GpuContext>, nonce_count: usize, data_gpu: &core::Mem) {
     core::set_kernel_arg(
         &gpu_context.kernel1,
         0,
@@ -584,7 +584,7 @@ fn hash(gpu_context: Arc<GpuContext>, nonce_count: usize, data_gpu: &core::Mem) 
     }
 }
 
-pub fn get_result(gpu_context: Arc<GpuContext>) -> (u64, u64) {
+pub fn get_result(gpu_context: &Arc<GpuContext>) -> (u64, u64) {
     let mut best_offset = vec![0u64; 1];
     let mut best_deadline = vec![0u64; 1];
 
@@ -623,7 +623,7 @@ fn get_kernel_work_group_size(x: &core::Kernel, y: core::DeviceId) -> usize {
     }
 }
 
-fn get_cores(device: &core::DeviceId) -> u32 {
+fn get_cores(device: core::DeviceId) -> u32 {
     match core::get_device_info(device, DeviceInfo::MaxComputeUnits).unwrap() {
         core::DeviceInfoResult::MaxComputeUnits(mcu) => mcu,
         _ => panic!("Unexpected error"),

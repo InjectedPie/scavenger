@@ -73,10 +73,11 @@ impl Reader {
             check_overlap(&drive_id_to_plots);
         }
 
-        let mut core_ids: Vec<core_affinity::CoreId> = Vec::new();
-        if thread_pinning {
-            core_ids = core_affinity::get_core_ids().unwrap();
-        }
+        let core_ids = if thread_pinning {
+            core_affinity::get_core_ids().unwrap()
+        } else {
+            Vec::new()
+        };
 
         Reader {
             drive_id_to_plots,

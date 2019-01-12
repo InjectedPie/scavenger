@@ -61,11 +61,10 @@ pub fn create_gpu_worker_task_async(
             // process start signal
             if read_reply.info.gpu_signal == 1 {
                 if !new_round {
-                    match rx_sink.try_recv() {
-                        Ok(sink_buffer) => tx_empty_buffers
+                    if let Ok(sink_buffer) = rx_sink.try_recv() {
+                        tx_empty_buffers
                             .send(sink_buffer)
-                            .expect("GPU async worker failed to cue empty buffer from sink"),
-                        Err(_) => (),
+                            .expect("GPU async worker failed to cue empty buffer from sink")
                     }
                 }
                 drive_count = 0;
@@ -77,34 +76,31 @@ pub fn create_gpu_worker_task_async(
             // end signal
             if read_reply.info.gpu_signal == 2 && active_height == read_reply.info.height {
                 drive_count += 1;
-                if drive_count == num_drives {
-                    if !new_round {
-                        let result = gpu_hash(
-                            context_mu.clone(),
-                            last_buffer_info_a.len / 64,
-                            last_buffer_a.as_ref().unwrap(),
-                        );
-                        let deadline = result.0;
-                        let offset = result.1;
+                if drive_count == num_drives && !new_round {
+                    let result = gpu_hash(
+                        &context_mu,
+                        last_buffer_info_a.len / 64,
+                        last_buffer_a.as_ref().unwrap(),
+                    );
+                    let deadline = result.0;
+                    let offset = result.1;
 
-                        tx_nonce_data
-                            .clone()
-                            .send(NonceData {
-                                height: last_buffer_info_a.height,
-                                base_target: last_buffer_info_a.base_target,
-                                deadline,
-                                nonce: offset + last_buffer_info_a.start_nonce,
-                                reader_task_processed: last_buffer_info_a.finished,
-                                account_id: last_buffer_info_a.account_id,
-                            })
-                            .wait()
-                            .expect("GPU async worker failed to send nonce data");
-                        match rx_sink.try_recv() {
-                            Ok(sink_buffer) => tx_empty_buffers
-                                .send(sink_buffer)
-                                .expect("GPU async worker failed to cue empty buffer from sink"),
-                            Err(_) => (),
-                        }
+                    tx_nonce_data
+                        .clone()
+                        .send(NonceData {
+                            height: last_buffer_info_a.height,
+                            base_target: last_buffer_info_a.base_target,
+                            deadline,
+                            nonce: offset + last_buffer_info_a.start_nonce,
+                            reader_task_processed: last_buffer_info_a.finished,
+                            account_id: last_buffer_info_a.account_id,
+                        })
+                        .wait()
+                        .expect("GPU async worker failed to send nonce data");
+                    if let Ok(sink_buffer) = rx_sink.try_recv() {
+                        tx_empty_buffers
+                            .send(sink_buffer)
+                            .expect("GPU async worker failed to cue empty buffer from sink")
                     }
                 }
                 continue;
@@ -115,13 +111,13 @@ pub fn create_gpu_worker_task_async(
 
             if new_round {
                 gpu_transfer(
-                    context_mu.clone(),
+                    &context_mu,
                     buffer.get_gpu_buffers().unwrap(),
                     *read_reply.info.gensig,
                 );
             } else {
                 let result = gpu_transfer_and_hash(
-                    context_mu.clone(),
+                    &context_mu,
                     buffer.get_gpu_buffers().unwrap(),
                     last_buffer_info_a.len / 64,
                     last_buffer_a.as_ref().unwrap(),
@@ -141,11 +137,10 @@ pub fn create_gpu_worker_task_async(
                     })
                     .wait()
                     .expect("GPU async worker failed to cue empty buffer");
-                match rx_sink.try_recv() {
-                    Ok(sink_buffer) => tx_empty_buffers
+                if let Ok(sink_buffer) = rx_sink.try_recv() {
+                    tx_empty_buffers
                         .send(sink_buffer)
-                        .expect("GPU async worker failed to cue empty buffer from sink"),
-                    Err(_) => (),
+                        .expect("GPU async worker failed to cue empty buffer from sink")
                 }
             }
             last_buffer_a = buffer.get_gpu_data();

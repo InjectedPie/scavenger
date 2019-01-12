@@ -48,12 +48,12 @@ pub fn create_gpu_worker_task(
             }
 
             gpu_transfer(
-                context_mu.clone(),
+                &context_mu,
                 buffer.get_gpu_buffers().unwrap(),
                 *read_reply.info.gensig,
             );
             let result = gpu_hash(
-                context_mu.clone(),
+                &context_mu,
                 read_reply.info.len / 64,
                 buffer.get_gpu_data().as_ref().unwrap(),
             );
@@ -132,7 +132,7 @@ mod tests {
             .unwrap();
         }
 
-        let result = gpu_hash(context.clone(), len as usize, &buffer_gpu);
+        let result = gpu_hash(&context, len as usize, &buffer_gpu);
         assert_eq!(18043101931632730606u64, result.0);
     }
 }

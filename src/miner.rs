@@ -214,7 +214,7 @@ impl Miner {
             if cfg.gpu_async {
                 gpu_worker_task_count + 2 * gpu_threads
             } else {
-                gpu_worker_task_count + 1 * gpu_threads
+                gpu_worker_task_count + gpu_threads
             }
         } else {
             0
@@ -239,7 +239,7 @@ impl Miner {
                     if cfg.gpu_async {
                         2 * gpu_threads
                     } else {
-                        1 * gpu_threads
+                        gpu_threads
                     }
                 } else {
                     0
@@ -315,7 +315,7 @@ impl Miner {
         }
 
         #[cfg(feature = "opencl")]
-        for i in 0..gpu_threads {
+        for (i, context) in gpu_contexts.iter().enumerate() {
             for _ in 0..(gpu_buffer_count / gpu_threads
                 + if i == 0 {
                     gpu_buffer_count % gpu_threads
@@ -323,7 +323,7 @@ impl Miner {
                     0
                 })
             {
-                let gpu_buffer = GpuBuffer::new(&gpu_contexts[i].clone(), i + 1);
+                let gpu_buffer = GpuBuffer::new(&context.clone(), i + 1);
                 tx_empty_buffers
                     .send(Box::new(gpu_buffer) as Box<Buffer + Send>)
                     .unwrap();

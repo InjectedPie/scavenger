@@ -243,12 +243,12 @@ impl RequestHandler {
                 .header("X-Miner", self.ua.to_owned())
                 .header(
                     "X-Minername",
-                    hostname::get_hostname().unwrap_or("".to_owned()),
+                    hostname::get_hostname().unwrap_or_else(|| "".to_owned()),
                 )
                 .header(
                     "X-Plotfile",
                     "ScavengerProxy/".to_owned()
-                        + &*hostname::get_hostname().unwrap_or("".to_owned()),
+                        + &*hostname::get_hostname().unwrap_or_else(|| "".to_owned()),
                 )
                 .body(hyper::Body::empty())
                 .unwrap()
