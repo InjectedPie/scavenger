@@ -202,11 +202,14 @@ impl Miner {
         };
 
         #[cfg(feature = "opencl")]
+        let gpu_threads = cfg.gpu_threads;
+
+        #[cfg(feature = "opencl")]
         let gpu_buffer_count = if gpu_worker_task_count > 0 {
             if cfg.gpu_async {
-                gpu_worker_task_count + 2
+                gpu_worker_task_count + 2 * gpu_threads
             } else {
-                gpu_worker_task_count + 1
+                gpu_worker_task_count + 1 * gpu_threads
             }
         } else {
             0
@@ -215,10 +218,9 @@ impl Miner {
         #[cfg(feature = "opencl")]
         info!(
             "reader-threads={}, CPU-threads={}, GPU-threads={}",
-            reader_thread_count,
-            cpu_threads,
-            if gpu_worker_task_count > 0 { 1 } else { 0 }
+            reader_thread_count, cpu_threads, gpu_threads,
         );
+
         #[cfg(feature = "opencl")]
         info!(
             "CPU-buffer={}(+{}), GPU-buffer={}(+{})",
@@ -231,9 +233,9 @@ impl Miner {
             gpu_worker_task_count,
             if gpu_worker_task_count > 0 {
                 if cfg.gpu_async {
-                    2
+                    2 * gpu_threads
                 } else {
-                    1
+                    1 * gpu_threads
                 }
             } else {
                 0
@@ -255,49 +257,33 @@ impl Miner {
         let buffer_size_cpu = cfg.cpu_nonces_per_cache * SCOOP_SIZE as usize;
         let (tx_empty_buffers, rx_empty_buffers) = chan::bounded(buffer_count as usize);
         let (tx_read_replies_cpu, rx_read_replies_cpu) = chan::bounded(cpu_buffer_count);
-        #[cfg(feature = "opencl")]
-        let (tx_read_replies_gpu_a, rx_read_replies_gpu_a) = chan::unbounded();
-        #[cfg(feature = "opencl")]
-        let (tx_read_replies_gpu_b, rx_read_replies_gpu_b) = chan::unbounded();
 
         #[cfg(feature = "opencl")]
-        let context = Arc::new(GpuContext::new(
-            cfg.gpu_platform,
-            cfg.gpu_device,
-            cfg.gpu_nonces_per_cache,
-            if cfg.benchmark_only.to_uppercase() == "I/O" {
-                false
-            } else {
-                cfg.gpu_mem_mapping
-            },
-        ));
-
+        let mut tx_read_replies_gpu = Vec::new();
         #[cfg(feature = "opencl")]
-        let context2 = Arc::new(GpuContext::new(
-            cfg.gpu_platform,
-            cfg.gpu_device,
-            cfg.gpu_nonces_per_cache,
-            if cfg.benchmark_only.to_uppercase() == "I/O" {
-                false
-            } else {
-                cfg.gpu_mem_mapping
-            },
-        ));
-
+        let mut rx_read_replies_gpu = Vec::new();
         #[cfg(feature = "opencl")]
-        for _ in 0..(gpu_buffer_count / 2 + gpu_buffer_count % 2) {
-            let gpu_buffer = GpuBuffer::new(&context.clone(), 1);
-            tx_empty_buffers
-                .send(Box::new(gpu_buffer) as Box<Buffer + Send>)
-                .unwrap();
+        for _ in 0..gpu_threads {
+            let (tx, rx) = chan::unbounded();
+            tx_read_replies_gpu.push(tx);
+            rx_read_replies_gpu.push(rx);
+
         }
 
         #[cfg(feature = "opencl")]
-        for _ in 0..(gpu_buffer_count / 2) {
-            let gpu_buffer = GpuBuffer::new(&context2.clone(), 2);
-            tx_empty_buffers
-                .send(Box::new(gpu_buffer) as Box<Buffer + Send>)
-                .unwrap();
+        let mut gpu_contexts = Vec::new();
+
+        for _ in 0..gpu_threads {
+            gpu_contexts.push(Arc::new(GpuContext::new(
+                cfg.gpu_platform,
+                cfg.gpu_device,
+                cfg.gpu_nonces_per_cache,
+                if cfg.benchmark_only.to_uppercase() == "I/O" {
+                    false
+                } else {
+                    cfg.gpu_mem_mapping
+                },
+            )));
         }
 
         for _ in 0..cpu_buffer_count {
@@ -305,6 +291,22 @@ impl Miner {
             tx_empty_buffers
                 .send(Box::new(cpu_buffer) as Box<Buffer + Send>)
                 .unwrap();
+        }
+
+        #[cfg(feature = "opencl")]
+        for i in 0..gpu_threads {
+            for _ in 0..(gpu_buffer_count / gpu_threads
+                + if i == 0 {
+                    gpu_buffer_count % gpu_threads
+                } else {
+                    0
+                })
+            {
+                let gpu_buffer = GpuBuffer::new(&gpu_contexts[i].clone(), i + 1);
+                tx_empty_buffers
+                    .send(Box::new(gpu_buffer) as Box<Buffer + Send>)
+                    .unwrap();
+            }
         }
 
         let (tx_nonce_data, rx_nonce_data) = mpsc::channel(buffer_count);
@@ -334,65 +336,37 @@ impl Miner {
             )
         });
 
-        if cfg.gpu_async {
-            #[cfg(feature = "opencl")]
-            thread::spawn({
-                create_gpu_worker_task_async(
-                    cfg.benchmark_only.to_uppercase() == "I/O",
-                    rx_read_replies_gpu_a.clone(),
-                    tx_empty_buffers.clone(),
-                    tx_nonce_data.clone(),
-                    context,
-                    drive_id_to_plots.len(),
-                )
-            });
-        } else {
-            #[cfg(feature = "opencl")]
-            thread::spawn({
-                create_gpu_worker_task(
-                    cfg.benchmark_only.to_uppercase() == "I/O",
-                    rx_read_replies_gpu_a.clone(),
-                    tx_empty_buffers.clone(),
-                    tx_nonce_data.clone(),
-                    context,
-                )
-            });
-        }
-
-        if cfg.gpu_async {
-            #[cfg(feature = "opencl")]
-            thread::spawn({
-                create_gpu_worker_task_async(
-                    cfg.benchmark_only.to_uppercase() == "I/O",
-                    rx_read_replies_gpu_b.clone(),
-                    tx_empty_buffers.clone(),
-                    tx_nonce_data.clone(),
-                    context2,
-                    drive_id_to_plots.len(),
-                )
-            });
-        } else {
-            #[cfg(feature = "opencl")]
-            thread::spawn({
-                create_gpu_worker_task(
-                    cfg.benchmark_only.to_uppercase() == "I/O",
-                    rx_read_replies_gpu_b.clone(),
-                    tx_empty_buffers.clone(),
-                    tx_nonce_data.clone(),
-                    context2,
-                )
-            });
+        #[cfg(feature = "opencl")]
+        for i in 0..gpu_threads {
+            if cfg.gpu_async {
+                thread::spawn({
+                    create_gpu_worker_task_async(
+                        cfg.benchmark_only.to_uppercase() == "I/O",
+                        rx_read_replies_gpu[i].clone(),
+                        tx_empty_buffers.clone(),
+                        tx_nonce_data.clone(),
+                        gpu_contexts[i].clone(),
+                        drive_id_to_plots.len(),
+                    )
+                });
+            } else {
+                #[cfg(feature = "opencl")]
+                thread::spawn({
+                    create_gpu_worker_task(
+                        cfg.benchmark_only.to_uppercase() == "I/O",
+                        rx_read_replies_gpu[i].clone(),
+                        tx_empty_buffers.clone(),
+                        tx_nonce_data.clone(),
+                        gpu_contexts[i].clone(),
+                    )
+                });
+            }
         }
 
         #[cfg(feature = "opencl")]
-        let tx_read_replies_gpu_a = Some(tx_read_replies_gpu_a);
+        let tx_read_replies_gpu = Some(tx_read_replies_gpu);
         #[cfg(not(feature = "opencl"))]
-        let tx_read_replies_gpu_a = None;
-
-        #[cfg(feature = "opencl")]
-        let tx_read_replies_gpu_b = Some(tx_read_replies_gpu_b);
-        #[cfg(not(feature = "opencl"))]
-        let tx_read_replies_gpu_b = None;
+        let tx_read_replies_gpu = None;
 
         let core = Core::new().unwrap();
         Miner {
@@ -404,11 +378,11 @@ impl Miner {
                 rx_empty_buffers,
                 tx_empty_buffers,
                 tx_read_replies_cpu,
-                tx_read_replies_gpu_a,
-                tx_read_replies_gpu_b,
+                tx_read_replies_gpu,
                 cfg.show_progress,
                 cfg.show_drive_stats,
                 cfg.cpu_thread_pinning,
+                cfg.benchmark_only.to_uppercase() == "XPU",
             ),
             rx_nonce_data,
             target_deadline: cfg.target_deadline,
@@ -487,14 +461,12 @@ impl Miner {
 
                                 drop(state);
 
-                                info!("DEBUG: borrow reader");
                                 reader.borrow_mut().start_reading(
                                     mining_info.height,
                                     mining_info.base_target,
                                     scoop,
                                     &Arc::new(gensig),
                                 );
-                                info!("DEBUG: borrow reader end");
                             } else if !state.scanning
                                 && wakeup_after != 0
                                 && state.sw.elapsed_ms() > wakeup_after

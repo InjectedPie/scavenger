@@ -33,6 +33,9 @@ pub struct Cfg {
     #[serde(default = "default_cpu_thread_pinning")]
     pub cpu_thread_pinning: bool,
 
+    #[serde(default = "default_gpu_threads")]
+    pub gpu_threads: usize,
+
     #[serde(default = "default_gpu_platform")]
     pub gpu_platform: usize,
 
@@ -124,6 +127,10 @@ fn default_cpu_nonces_per_cache() -> usize {
 
 fn default_cpu_thread_pinning() -> bool {
     false
+}
+
+fn default_gpu_threads() -> usize {
+    0
 }
 
 fn default_gpu_platform() -> usize {
