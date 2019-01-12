@@ -23,6 +23,7 @@ use std::cmp::min;
 use std::collections::HashMap;
 use std::fs::read_dir;
 use std::path::Path;
+use std::process;
 use std::rc::Rc;
 use std::sync::RwLock;
 use std::sync::{Arc, Mutex};
@@ -182,7 +183,7 @@ impl Miner {
         );
 
         let core_ids = core_affinity::get_core_ids().unwrap();
-
+        let thread_pinning = cfg.cpu_thread_pinning;
         let cpu_threads = if cfg.cpu_threads == 0 {
             core_ids.len()
         } else {
@@ -190,10 +191,13 @@ impl Miner {
         };
 
         let cpu_worker_task_count = cfg.cpu_worker_task_count;
-        #[cfg(feature = "opencl")]
-        let gpu_worker_task_count = cfg.gpu_worker_task_count;
 
-        let cpu_buffer_count = cpu_worker_task_count + cpu_threads;
+        let cpu_buffer_count = cpu_worker_task_count
+            + if cpu_worker_task_count > 0 {
+                cpu_threads
+            } else {
+                0
+            };
 
         let reader_thread_count = if cfg.hdd_reader_thread_count == 0 {
             drive_id_to_plots.len()
@@ -202,8 +206,9 @@ impl Miner {
         };
 
         #[cfg(feature = "opencl")]
+        let gpu_worker_task_count = cfg.gpu_worker_task_count;
+        #[cfg(feature = "opencl")]
         let gpu_threads = cfg.gpu_threads;
-
         #[cfg(feature = "opencl")]
         let gpu_buffer_count = if gpu_worker_task_count > 0 {
             if cfg.gpu_async {
@@ -214,41 +219,57 @@ impl Miner {
         } else {
             0
         };
-
         #[cfg(feature = "opencl")]
-        info!(
-            "reader-threads={}, CPU-threads={}, GPU-threads={}",
-            reader_thread_count, cpu_threads, gpu_threads,
-        );
+        {
+            info!(
+                "reader-threads={}, CPU-threads={}, GPU-threads={}",
+                reader_thread_count, cpu_threads, gpu_threads,
+            );
 
-        #[cfg(feature = "opencl")]
-        info!(
-            "CPU-buffer={}(+{}), GPU-buffer={}(+{})",
-            cpu_worker_task_count,
-            if cpu_worker_task_count > 0 {
-                cpu_threads
-            } else {
-                0
-            },
-            gpu_worker_task_count,
-            if gpu_worker_task_count > 0 {
-                if cfg.gpu_async {
-                    2 * gpu_threads
+            info!(
+                "CPU-buffer={}(+{}), GPU-buffer={}(+{})",
+                cpu_worker_task_count,
+                if cpu_worker_task_count > 0 {
+                    cpu_threads
                 } else {
-                    1 * gpu_threads
+                    0
+                },
+                gpu_worker_task_count,
+                if gpu_worker_task_count > 0 {
+                    if cfg.gpu_async {
+                        2 * gpu_threads
+                    } else {
+                        1 * gpu_threads
+                    }
+                } else {
+                    0
                 }
-            } else {
-                0
+            );
+
+            {
+                if cpu_threads * cpu_worker_task_count + gpu_threads * gpu_worker_task_count == 0 {
+                    error!("CPU, GPU: no active workers. Check thread and task configuration. Shutting down...");
+                    process::exit(0);
+                }
             }
-        );
+        }
 
         #[cfg(not(feature = "opencl"))]
-        info!(
-            "reader-threads={} CPU-threads={}",
-            reader_thread_count, cpu_threads
-        );
-        #[cfg(not(feature = "opencl"))]
-        info!("CPU-buffer={}(+{})", cpu_worker_task_count, cpu_threads);
+        {
+            info!(
+                "reader-threads={} CPU-threads={}",
+                reader_thread_count, cpu_threads
+            );
+            info!("CPU-buffer={}(+{})", cpu_worker_task_count, cpu_threads);
+            {
+                if cpu_threads * cpu_worker_task_count == 0 {
+                    error!(
+                    "CPU: no active workers. Check thread and task configuration. Shutting down..."
+                );
+                    process::exit(0);
+                }
+            }
+        }
 
         #[cfg(not(feature = "opencl"))]
         let buffer_count = cpu_buffer_count;
@@ -263,27 +284,27 @@ impl Miner {
         #[cfg(feature = "opencl")]
         let mut rx_read_replies_gpu = Vec::new();
         #[cfg(feature = "opencl")]
-        for _ in 0..gpu_threads {
-            let (tx, rx) = chan::unbounded();
-            tx_read_replies_gpu.push(tx);
-            rx_read_replies_gpu.push(rx);
-
-        }
-
-        #[cfg(feature = "opencl")]
         let mut gpu_contexts = Vec::new();
+        #[cfg(feature = "opencl")]
+        {
+            for _ in 0..gpu_threads {
+                let (tx, rx) = chan::unbounded();
+                tx_read_replies_gpu.push(tx);
+                rx_read_replies_gpu.push(rx);
+            }
 
-        for _ in 0..gpu_threads {
-            gpu_contexts.push(Arc::new(GpuContext::new(
-                cfg.gpu_platform,
-                cfg.gpu_device,
-                cfg.gpu_nonces_per_cache,
-                if cfg.benchmark_only.to_uppercase() == "I/O" {
-                    false
-                } else {
-                    cfg.gpu_mem_mapping
-                },
-            )));
+            for _ in 0..gpu_threads {
+                gpu_contexts.push(Arc::new(GpuContext::new(
+                    cfg.gpu_platform,
+                    cfg.gpu_device,
+                    cfg.gpu_nonces_per_cache,
+                    if cfg.benchmark_only.to_uppercase() == "I/O" {
+                        false
+                    } else {
+                        cfg.gpu_mem_mapping
+                    },
+                )));
+            }
         }
 
         for _ in 0..cpu_buffer_count {
@@ -310,8 +331,6 @@ impl Miner {
         }
 
         let (tx_nonce_data, rx_nonce_data) = mpsc::channel(buffer_count);
-
-        let thread_pinning = cfg.cpu_thread_pinning;
 
         thread::spawn({
             create_cpu_worker_task(

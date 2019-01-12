@@ -33,6 +33,7 @@ pub struct ReadReply {
     pub info: BufferInfo,
 }
 
+#[allow(dead_code)]
 pub struct Reader {
     drive_id_to_plots: HashMap<String, Arc<Mutex<Vec<RwLock<Plot>>>>>,
     pub total_size: u64,
@@ -124,23 +125,21 @@ impl Reader {
         // send start signals (dummy buffer) to gpu threads
         #[cfg(feature = "opencl")]
         for i in 0..self.tx_read_replies_gpu.as_ref().unwrap().len() {
-        self.tx_read_replies_gpu
-            .as_ref()
-            .unwrap()[i]
-            .send(ReadReply {
-                buffer: Box::new(CpuBuffer::new(0)) as Box<Buffer + Send>,
-                info: BufferInfo {
-                    len: 1,
-                    height,
-                    base_target,
-                    gensig: gensig.clone(),
-                    start_nonce: 0,
-                    finished: false,
-                    account_id: 0,
-                    gpu_signal: 1,
-                },
-            })
-            .expect("Error sending 'round start' signal to GPU");
+            self.tx_read_replies_gpu.as_ref().unwrap()[i]
+                .send(ReadReply {
+                    buffer: Box::new(CpuBuffer::new(0)) as Box<Buffer + Send>,
+                    info: BufferInfo {
+                        len: 1,
+                        height,
+                        base_target,
+                        gensig: gensig.clone(),
+                        start_nonce: 0,
+                        finished: false,
+                        account_id: 0,
+                        gpu_signal: 1,
+                    },
+                })
+                .expect("Error sending 'round start' signal to GPU");
         }
 
         self.interupts = self
@@ -273,9 +272,7 @@ impl Reader {
                                 .expect("failed to send read data to CPU thread");
                         }
                         i => {
-                            tx_read_replies_gpu
-                                .as_ref()
-                                .unwrap()[i-1]
+                            tx_read_replies_gpu.as_ref().unwrap()[i - 1]
                                 .send(ReadReply {
                                     buffer,
                                     info: BufferInfo {
@@ -327,23 +324,21 @@ impl Reader {
                     if finished {
                         #[cfg(feature = "opencl")]
                         for i in 0..tx_read_replies_gpu.as_ref().unwrap().len() {
-                        tx_read_replies_gpu
-                            .as_ref()
-                            .unwrap()[i]
-                            .send(ReadReply {
-                                buffer: Box::new(CpuBuffer::new(0)) as Box<Buffer + Send>,
-                                info: BufferInfo {
-                                    len: 1,
-                                    height,
-                                    base_target,
-                                    gensig: gensig.clone(),
-                                    start_nonce: 0,
-                                    finished: false,
-                                    account_id: 0,
-                                    gpu_signal: 2,
-                                },
-                            })
-                            .expect("Error sending 'drive finished' signal to GPU thread A");
+                            tx_read_replies_gpu.as_ref().unwrap()[i]
+                                .send(ReadReply {
+                                    buffer: Box::new(CpuBuffer::new(0)) as Box<Buffer + Send>,
+                                    info: BufferInfo {
+                                        len: 1,
+                                        height,
+                                        base_target,
+                                        gensig: gensig.clone(),
+                                        start_nonce: 0,
+                                        finished: false,
+                                        account_id: 0,
+                                        gpu_signal: 2,
+                                    },
+                                })
+                                .expect("Error sending 'drive finished' signal to GPU thread A");
                         }
                     }
 

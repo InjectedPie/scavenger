@@ -107,9 +107,9 @@ pub fn gpu_info(cfg: &Cfg) {
 
         let gpu_num_buffers = if cfg.gpu_worker_task_count > 0 {
             if cfg.gpu_async {
-                cfg.gpu_worker_task_count + 2
+                cfg.gpu_worker_task_count + 2 * cfg.gpu_threads
             } else {
-                cfg.gpu_worker_task_count + 1
+                cfg.gpu_worker_task_count + 1 * cfg.gpu_threads
             }
         } else {
             0
@@ -124,10 +124,12 @@ pub fn gpu_info(cfg: &Cfg) {
                 );
                 info!(
                     "GPU: RAM usage (estimated)={}MiB",
-                    cfg.gpu_nonces_per_cache * 64 * (gpu_num_buffers) / 1024 / 1024 + 45
+                    cfg.gpu_nonces_per_cache * 64 * (gpu_num_buffers) / 1024 / 1024
+                        + 45 * cfg.gpu_threads
                 );
 
-                if cfg.gpu_nonces_per_cache * 64 * (gpu_num_buffers) / 1024 / 1024 + 45
+                if cfg.gpu_nonces_per_cache * 64 * (gpu_num_buffers) / 1024 / 1024
+                    + 45 * cfg.gpu_threads
                     > mem as usize / 1024 / 1024
                 {
                     warn!(
